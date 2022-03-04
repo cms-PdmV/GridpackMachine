@@ -1,0 +1,14 @@
+{
+    "scheme": "massW.dat",
+
+    "run_card":{
+        "parton_shower": "pythia8",
+        "ickkw": "3",
+        "maxjetflavor": "5"
+    },
+
+    "user":[
+        "set run_card ptj 10" 
+    ]
+}
+

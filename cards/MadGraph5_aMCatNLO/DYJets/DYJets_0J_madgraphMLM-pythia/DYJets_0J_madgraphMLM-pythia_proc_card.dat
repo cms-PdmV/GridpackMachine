@@ -1,0 +1,10 @@
+import model sm
+
+define ell+ = e+ mu+ ta+
+define ell- = e- mu- ta-
+define vl = ve vm vt
+define vl~ = ve~ vm~ vt~
+
+generate p p > ell+ ell- $$ t t~ h @0
+
+output DYJets_0J_madgraphMLM-pythia -nojpeg

@@ -1,4 +1,0 @@
-import model sm-ckm_no_b_mass
-generate p p > e+ e-
-output pdmvtestLO
-

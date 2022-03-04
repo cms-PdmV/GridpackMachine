@@ -1,4 +1,22 @@
 #*********************************************************************
+#                       MadGraph5_aMC@NLO                            *
+#                                                                    *
+#                     run_card.dat MadEvent                          *
+#                                                                    *
+#  This file is used to set the parameters of the run.               *
+#                                                                    *
+#  Some notation/conventions:                                        *
+#                                                                    *
+#   Lines starting with a '# ' are info or comments                  *
+#                                                                    *
+#   mind the format:   value    = variable     ! comment             *
+#*********************************************************************
+#
+#*******************                                                 
+# Running parameters
+#*******************                                                 
+#                                                                    
+#*********************************************************************
 # Tag name for the run (one word)                                    *
 #*********************************************************************
   tag_1	= run_tag ! name of the run 
@@ -11,7 +29,7 @@
 # Warning: Do not generate more than 1M events in a single run       *
 # If you want to run Pythia, avoid more than 50k events in a run.    *
 #*********************************************************************
-  1000	= nevents ! Number of unweighted events requested 
+  5000	= nevents ! Number of unweighted events requested 
   0	= iseed ! rnd seed (0=assigned automatically=default))
 #*********************************************************************
 # Collider type and energy                                           *
@@ -20,8 +38,8 @@
 #*********************************************************************
   1	= lpp1 ! beam 1 type 
   1	= lpp2 ! beam 2 type
-  6500.0	= ebeam1 ! beam 1 total energy in GeV
-  6500.0	= ebeam2 ! beam 2 total energy in GeV
+  $ebeam1 = ebeam1 ! beam 1 total energy in GeV
+  $ebeam2 = ebeam2 ! beam 2 total energy in GeV
 #*********************************************************************
 # Beam polarization from -100 (left-handed) to 100 (right-handed)    *
 #*********************************************************************
@@ -31,8 +49,7 @@
 # PDF CHOICE: this automatically fixes also alpha_s and its evol.    *
 #*********************************************************************
   'lhapdf'    = pdlabel     ! PDF set                                  
-$DEFAULT_PDF_SETS = lhaid
-$DEFAULT_PDF_MEMBERS = reweight_PDF     ! if pdlabel=lhapdf, this is the lhapdf number
+ $DEFAULT_PDF_SETS = lhaid
 #*********************************************************************
 # Renormalization and factorization scales                           *
 #*********************************************************************
@@ -50,13 +67,13 @@ $DEFAULT_PDF_MEMBERS = reweight_PDF     ! if pdlabel=lhapdf, this is the lhapdf 
 #*********************************************************************
 # Matching - Warning! ickkw > 1 is still beta
 #*********************************************************************
-  0	= ickkw ! 0 no matching, 1 MLM, 2 CKKW matching
+  $ickkw   = ickkw ! 0 no matching, 1 MLM, 2 CKKW matching
   1	= highestmult ! for ickkw=2, highest mult group
   1	= ktscheme ! for ickkw=1, 1 Durham kT, 2 Pythia pTE
   1.0	= alpsfact ! scale factor for QCD emission vx
   False	= chcluster ! cluster only according to channel diag
   False	= pdfwgt ! for ickkw=1, perform pdf reweighting
-  5	= asrwgtflavor ! highest quark flavor for a_s reweight
+  $maxjetflavor   = asrwgtflavor ! highest quark flavor for a_s reweight
   True	= clusinfo ! include clustering tag in output
   3.0	= lhe_version ! Change the way clustering information pass to shower.        
 #*********************************************************************
@@ -66,7 +83,7 @@ $DEFAULT_PDF_MEMBERS = reweight_PDF     ! if pdlabel=lhapdf, this is the lhapdf 
 # Automatic ptj and mjj cuts if xqcut > 0
 # (turn off for VBF and single top processes)
 #**********************************************************
-  False	= auto_ptj_mjj ! Automatic setting of ptj and mjj
+  True	= auto_ptj_mjj ! Automatic setting of ptj and mjj
 #**********************************************************
 #                                                                    
 #**********************************
@@ -156,7 +173,7 @@ $DEFAULT_PDF_MEMBERS = reweight_PDF     ! if pdlabel=lhapdf, this is the lhapdf 
   0.0	= mmjj ! min invariant mass of a jet pair 
   0.0	= mmbb ! min invariant mass of a b pair 
   0.0	= mmaa ! min invariant mass of gamma gamma pair
-  50.0	= mmll ! min invariant mass of l+l- (same flavour) lepton pair
+  0.0	= mmll ! min invariant mass of l+l- (same flavour) lepton pair
   -1.0	= mmjjmax ! max invariant mass of a jet pair
   -1.0	= mmbbmax ! max invariant mass of a b pair
   -1.0	= mmaamax ! max invariant mass of gamma gamma pair
@@ -185,7 +202,7 @@ $DEFAULT_PDF_MEMBERS = reweight_PDF     ! if pdlabel=lhapdf, this is the lhapdf 
   0.0	= ptj2min ! minimum pt for the second jet in pt
   0.0	= ptj3min ! minimum pt for the third jet in pt
   0.0	= ptj4min ! minimum pt for the fourth jet in pt
-  -1	= ptj1max ! maximum pt for the leading jet in pt 
+  -1.0	= ptj1max ! maximum pt for the leading jet in pt 
   -1.0	= ptj2max ! maximum pt for the second jet in pt
   -1.0	= ptj3max ! maximum pt for the third jet in pt
   -1.0	= ptj4max ! maximum pt for the fourth jet in pt
@@ -238,11 +255,11 @@ $DEFAULT_PDF_MEMBERS = reweight_PDF     ! if pdlabel=lhapdf, this is the lhapdf 
 # maximal pdg code for quark to be considered as a light jet         *
 # (otherwise b cuts are applied)                                     *
 #*********************************************************************
-  5	= maxjetflavor ! Maximum jet pdg code
+ $maxjetflavor     = maxjetflavor ! Maximum jet pdg code
 #*********************************************************************
 # Jet measure cuts                                                   *
 #*********************************************************************
-  0.0	= xqcut ! minimum kt jet measure between partons
+ $xqcut     = xqcut ! minimum kt jet measure between partons
 #*********************************************************************
 #
 #*********************************************************************
@@ -252,7 +269,4 @@ $DEFAULT_PDF_MEMBERS = reweight_PDF     ! if pdlabel=lhapdf, this is the lhapdf 
 #          reweighting into account!                                 *
 #*********************************************************************
   True	= use_syst ! Enable systematics studies
-#
 #********************************************************************* 
-#  Additional parameter
-#*********************************************************************
