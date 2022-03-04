@@ -1,88 +1,98 @@
-#!/usr/bin/env python3
-
 import os
+import pathlib
 import sys
 import json
 import argparse
+import logging
+import time
+
+
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--datasetpath", action = "store", default = None,
-                    help = "path to dataset directory")
-parser.add_argument("--campaign", action = "store", default = None,
-                    help = "campign setting")
+parser.add_argument('--campaign',
+                    required=True,
+                    help='Campaign directory')
+parser.add_argument('--process', '-p',
+                    required=True)
+parser.add_argument('--setting', '-s',
+                    required=True)
+parser.add_argument('--generator', '-g',
+                    required=True)
+parser.add_argument('--directory', '-d',
+                    required=True)
+parser.add_argument('--beamEnergy', '-e',
+                    required=True)
+parser.add_argument('--pythiaTune', '-t',
+                    required=True)
+parser.add_argument('--genproductions', '-i',
+                    required=True)
+parser.add_argument('--debug',
+                    action='store_true',
+                    default=False)
 args = parser.parse_args()
 
-datasetPath = args.datasetpath
-campaign = args.campaign
-campaignPath = os.path.join("campaignCoordinations", campaign)
+log_format = '[%(asctime)s][%(levelname)s] %(message)s'
+logging.basicConfig(format=log_format, level=logging.DEBUG if args.debug else logging.INFO)
+logger = logging.getLogger()
 
-templatePath = os.path.join("campaignCoordinations", campaign, "template", "MadGraph5_aMCatNLO")
+logger.debug('Arguments %s', args)
+
+campaign_path = os.path.join('campaigns', args.campaign)
+template_path = os.path.join(campaign_path, 'template', args.directory)
+pdf_path = os.path.join(campaign_path, 'PDF')
+# Not really a dataset name, but almost
+dataset_name = f'{args.process}_{args.setting}_{args.generator}'
+
+cards_path = os.path.join('cards', args.directory, args.process, dataset_name)
+tmp_path = os.path.join('/tmp', 'gridpacks', f'{dataset_name}_{int(time.time())}')
+
+logger.debug('Campaign path %s', campaign_path)
+logger.debug('Template path %s', template_path)
+logger.debug('PDF path %s', pdf_path)
+logger.debug('Cards path %s', cards_path)
+logger.debug('TMP directory %s', tmp_path)
 
 CORES = 8
 
-if not datasetPath:
-    sys.exit("[error] dataset path not given")
+with open(os.path.join(cards_path, f'{dataset_name}.json')) as input_file:
+    dataset_dict = json.load(input_file)
 
-if not campaign:
-    sys.exit("[error] campaign not given")
+logger.debug('Dataset "%s" dict:\n%s', dataset_name, json.dumps(dataset_dict, indent=2))
 
-campaignJson = os.path.join(campaignPath, f"{campaign}.json")
-with open(campaignJson) as jsonFile:
-    campaignObject = json.load(jsonFile)
-    jsonFile.close()
+# Make the /tmp workspace
+logger.debug('Making %s...', tmp_path)
+pathlib.Path(tmp_path).mkdir(parents=True, exist_ok=True)
 
-if not datasetPath.endswith("/"):
-    datasetPath = f"{datasetPath}/"
-datasetName = datasetPath.rsplit("/", 2)[1]
-
-datasetJson = os.path.join(datasetPath, f"{datasetName}.json")
-with open(datasetJson) as jsonFile:
-    datasetObject = json.load(jsonFile)
-    jsonFile.close()
-
-os.system(f"mkdir -p {datasetName}")
 
 def prepareDefaultCard():
+    os.system(f'cp {cards_path}/*.dat {tmp_path}')
 
-    templateProccardPath = os.path.join(datasetPath, f"{datasetName}_proc_card.dat")
-    os.system(f"echo \"set nb_core {CORES}\" > {datasetName}/{datasetName}_proc_card.dat")
-    os.system(f"cat {templateProccardPath} >> {datasetName}/{datasetName}_proc_card.dat")
-
-    templateMadspincardPath = os.path.join(datasetPath, f"{datasetName}_madspin_card.dat")
-    if os.path.exists(templateMadspincardPath):
-        os.system(f"cat {templateMadspincardPath} > {datasetName}/{datasetName}_madspin_card.dat")
 
 def prepareRunCard():
-
-    templateRuncardPath = os.path.join(templatePath, "run_card")
-
-    if "amcatnlo" in datasetName:
-        os.system(f"cp {templateRuncardPath}/NLO_run_card.dat {datasetName}/{datasetName}_run_card.dat")
-        isNLO = True
-    elif "madgraph" in datasetName:
-        os.system(f"cp {templateRuncardPath}/LO_run_card.dat {datasetName}/{datasetName}_run_card.dat")
-        isNLO = False
+    run_card_path = os.path.join(template_path, "run_card")
+    run_card_file_name = os.path.join(tmp_path, f'{dataset_name}_run_card.dat')
+    if "amcatnlo" in template_path.lower():
+        os.system(f"cp {run_card_path}/NLO_run_card.dat {run_card_file_name}")
+    elif "madgraph" in template_path.lower():
+        os.system(f"cp {run_card_path}/LO_run_card.dat {run_card_file_name}")
     else:
-        sys.exit("[error] dataset name not properly set")
+        logger.error('Could not find "amcatnlo" or "madgraph" in "%s"', dataset_name)
+        sys.exit(1)
 
-    runcardPath = os.path.join(datasetName, f"{datasetName}_run_card.dat")
+    with open(run_card_file_name) as input_file:
+        logger.debug('Reading %s...', run_card_file_name)
+        run_card_file = input_file.read()
 
-    beamEnergy = campaignObject["beamEnergy"]
-    os.system(f"sed -i 's|\$ebeam1|{beamEnergy}|g' {runcardPath}")
-    os.system(f"sed -i 's|\$ebeam2|{beamEnergy}|g' {runcardPath}")
+    run_card_file = run_card_file.replace('$ebeam1', args.beamEnergy)
+    run_card_file = run_card_file.replace('$ebeam2', args.beamEnergy)
+    for key, value in dataset_dict.get('run_card', {}).items():
+        key = f'${key}'
+        logger.debug('Replacing "%s" with "%s" in %s', key, value, run_card_file_name)
+        run_card_file = run_card_file.replace(key, value)
 
-    ickkw = datasetObject["run_card"]["ickkw"]
-    os.system(f"sed -i 's|\$ickkw|{ickkw}|g' {runcardPath}")
-
-    maxjetflavor = datasetObject["run_card"]["maxjetflavor"]
-    os.system(f"sed -i 's|\$maxjetflavor|{maxjetflavor}|g' {runcardPath}")
-
-    if isNLO:
-        parton_shower = datasetObject["run_card"]["parton_shower"]
-        os.system(f"sed -i 's|\$parton_shower|{parton_shower}|g' {runcardPath}")
-    else:
-        xqcut = datasetObject["run_card"]["xqcut"]
-        os.system(f"sed -i 's|\$xqcut|{xqcut}|g' {runcardPath}")
+    with open(run_card_file_name, 'w') as output_file:
+        logger.debug('Writing %s...', run_card_file_name)
+        output_file.write(run_card_file)
 
 def prepareCustomizeCard():
 
