@@ -1,0 +1,300 @@
+<html>
+
+<head>
+  <title>Gridpack Extravaganza</title>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.1/dist/js/bootstrap.bundle.min.js"></script>
+
+  <link rel="icon" type="image/png" href="static/icon.png" />
+  <style>
+    body {
+      background: #fafafa;
+    }
+    .wizard-option {
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    td, th {
+      border: 1px #aaa solid;
+      padding: 2px 4px;
+      font-size: 0.9em;
+      text-align: center;
+      white-space: nowrap;
+    }
+    th {
+      text-align: center;
+      background: #eee;
+    }
+    tr {
+      height: 30px;
+      background: white;
+    }
+    table {
+      margin-left: auto;
+      margin-right: auto;
+      margin-bottom: 40px;
+      margin-top: 20px;
+      border-collapse: collapse;
+    }
+    .sort {
+      cursor: pointer;
+    }
+    input {
+      width: 98%;
+      margin: auto;
+      margin-bottom: 2px;
+      border: 1px solid black;
+      padding-left: 4px;
+      padding-right: 4px;
+    }
+    .sorted-by {
+      background: #c8c8c8;
+    }
+    a {
+      color: #005eb6;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app">
+    <div class="container mt-4" style="text-align: center;">
+      <button type="button" class="btn btn-success btn-sm" data-toggle="modal" data-target="#createGridpackModal">Create</button>
+      <button type="button" class="btn btn-info btn-sm" @click="forceTick()">Machine tick</button>
+      <button type="button" class="btn btn-info btn-sm" @click="forceRepositoryTick()">Refresh repository</button>
+    </div>
+    <div class="container mt-4" style="text-align: center;">
+      Tick {{systemInfo.lastTickNice}} ago | Repository {{systemInfo.lastTicRepositorykNice}} ago | {{user.fullname}}
+    </div>
+    <table>
+      <tr>
+        <th>Campaign</th>
+        <th>Generator</th>
+        <th>Process</th>
+        <th>Dataset</th>
+        <th>Beam energy</th>
+        <th>Tune</th>
+        <th>Events</th>
+        <th>GEN productions</th>
+        <th>Status</th>
+        <th>Job status</th>
+        <th>Job ID</th>
+      </tr>
+      <tr v-for="gridpack in gridpacks" :key="gridpack.id">
+        <td>
+          {{gridpack.campaign}}
+        </td>
+        <td>
+          {{gridpack.generator}}
+        </td>
+        <td>
+          {{gridpack.process}}
+        </td>
+        <td>
+          {{gridpack.dataset}}
+        </td>
+        <td>
+          {{gridpack.beam}}
+        </td>
+        <td>
+          {{gridpack.tune}}
+        </td>
+        <td>
+          {{gridpack.events}}
+        </td>
+        <td>
+          {{gridpack.genproductions}}
+        </td>
+        <td>
+          {{gridpack.status}}
+        </td>
+        <td>
+          {{gridpack.condor_status}}
+        </td>
+        <td>
+          {{gridpack.condor_id}}
+        </td>
+      </tr>
+    </table>
+    <!-- Create new gridpack modal -->
+    <div class="modal fade" id="createGridpackModal" data-backdrop="static" data-keyboard="false" tabindex="-1" aria-labelledby="createGridpackModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="createGridpackModalLabel">New gridpack</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <ul v-if="systemInfo.options && systemInfo.options.campaigns">
+              <li v-for="(_, campaign) in systemInfo.options.campaigns">
+                <span class="wizard-option" @click="selectCampaign(campaign)">{{campaign}}</span>
+                <ul v-if="wizard.campaign == campaign">
+                  <li v-for="generator in systemInfo.options.campaigns[wizard.campaign]" >
+                    <span class="wizard-option" @click="selectGenerator(generator)">{{generator}}</span>
+                    <ul v-if="wizard.generator == generator">
+                      <li v-for="(_, process) in systemInfo.options.cards[wizard.generator]" >
+                        <span class="wizard-option" @click="selectProcess(process)">{{process}}</span>
+                        <ul v-if="wizard.process == process">
+                          <li v-for="dataset in systemInfo.options.cards[wizard.generator][wizard.process]">
+                            <span class="wizard-option" @click="selectDataset(dataset)">{{dataset}}</span>
+                          </li>
+                        </ul>
+                      </li>
+                    </ul>
+                  </li>
+                </ul>
+              </li>
+            </ul>
+            <table v-if="wizard.dataset">
+              <tr><td>Events</td><td><input type="number" v-model="wizard.events"></td></tr>
+              <tr><td>Tune</td><td><input type="text" v-model="wizard.tune"></td></tr>
+              <tr><td>Beam evergy</td><td><input type="number" v-model="wizard.beam"></td></tr>
+              <tr><td>GENproductions</td><td><input type="text" v-model="wizard.genproductions"></td></tr>
+            </table>
+          </div>
+          <div class="modal-footer">
+            <button type="button"
+                    class="btn btn-sm btn-success"
+                    :disabled="wizard.events <= 0 || !wizard.tune.length || wizard.beam <= 0 || !wizard.genproductions.length"
+                    @click="createGridpack()"
+                    data-dismiss="modal">Create gridpack</button>
+            <button type="button" class="btn btn-sm btn-secondary" data-dismiss="modal">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    var app = new Vue({
+      el: '#app',
+      data: {
+        user: {},
+        systemInfo: {},
+        gridpacks: [],
+        totalGridpacks: 0,
+        wizard: {
+          campaign: undefined,
+          generator: undefined,
+          process: undefined,
+          dataset: undefined,
+          events: 0,
+          tune: '',
+          beam: 0,
+          genproductions: '',
+        }
+      },
+      created() {
+        this.getUserInfo();
+        this.getSystemInfo();
+        this.getGridpacks();
+      },
+      methods: {
+        getUserInfo: function() {
+          const component = this;
+          $.get("api/user", function (data) {
+            component.user = data;
+          });
+        },
+        getSystemInfo: function() {
+          const component = this;
+          $.get("api/system_info", function (data) {
+            component.systemInfo = data;
+            let now = parseInt(Date.now() / 1000)
+            component.systemInfo.lastTickNice = component.secondsToDiff(now - data.last_tick);
+            component.systemInfo.lastTicRepositorykNice = component.secondsToDiff(now - data.last_repository_tick);
+          });
+        },
+        getGridpacks: function() {
+          const component = this;
+          $.get("api/get", function (data) {
+            component.gridpacks = data[0];
+            component.totalGridpacks = data[1];
+          });
+        },
+        forceTick: function() {
+          const component = this;
+          $.get("api/tick", function (data) {
+            if (data.message != 'OK') {
+              alert(data);
+            }
+          });
+        },
+        forceRepositoryTick: function() {
+          const component = this;
+          $.get("api/tick_repository", function (data) {
+            if (data.message != 'OK') {
+              alert(data);
+            }
+          });
+        },
+        selectCampaign: function(campaign) {
+          this.wizard.campaign = campaign;
+          this.selectGenerator(undefined);
+        },
+        selectGenerator: function(generator) {
+          this.wizard.generator = generator;
+          this.selectProcess(undefined);
+        },
+        selectProcess: function(process) {
+          this.wizard.process = process;
+          this.selectDataset(undefined);
+        },
+        selectDataset: function(dataset) {
+          this.wizard.dataset = dataset;
+          this.wizard.events = 0;
+          this.wizard.tune = '';
+          this.wizard.beam = 0;
+          this.wizard.genproductions = '';
+        },
+        createGridpack: function() {
+          const component = this;
+          let wizard = this.wizard;
+          let gridpack = {'campaign': wizard.campaign,
+                          'generator': wizard.generator,
+                          'process': wizard.process,
+                          'dataset': wizard.dataset,
+                          'events': parseInt(wizard.events),
+                          'tune': wizard.tune,
+                          'beam': parseInt(wizard.beam),
+                          'genproductions': wizard.genproductions};
+            $.ajax({
+              url: 'api/create',
+              type: 'PUT',
+              data: JSON.stringify(gridpack),
+              contentType: 'application/json',
+              success: function(result) {
+                console.log(result);
+                component.getGridpacks();
+              }
+          });
+        },
+        secondsToDiff: function (s) {
+            var days = Math.floor(s / 86400)
+            var hours = Math.floor((s - (days * 86400)) / 3600)
+            var minutes = Math.round((s - (days * 86400 + hours * 3600)) / 60)
+            if (days == 0 && hours == 0 && minutes == 0) {
+                return parseInt(s) + 's'
+            }
+            var result = ''
+            if (days > 0) {
+                result += days + 'd '
+            }
+            if (hours > 0) {
+                result += hours + 'h '
+            }
+            if (minutes > 0) {
+                result += minutes + 'min'
+            }
+            return result
+          },
+      }
+    })
+  </script>
+</body>
+
+</html>
