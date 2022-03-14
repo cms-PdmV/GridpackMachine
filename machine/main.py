@@ -232,9 +232,10 @@ def main():
 
     if not debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         controller.set_config(config)
-        interval = int(config.get('tick_interval', 600))
-        scheduler.add_job(tick, interval)
-        scheduler.add_job(tick_repository, interval)
+        tick_interval = int(config.get('tick_interval', 600))
+        repository_update_interval = int(config.get('repository_update_interval', 1200))
+        scheduler.add_job(tick, tick_interval)
+        scheduler.add_job(tick_repository, repository_update_interval)
 
     scheduler.start()
     port = args.get('port')

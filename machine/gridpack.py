@@ -25,11 +25,22 @@ class Gridpack():
     def validate(self):
         pass
 
+    def reset(self):
+        self.set_status('new')
+        self.set_condor_status('')
+        self.set_condor_id(0)
+
     def get_id(self):
         return self.data['_id']
 
     def get_status(self):
         return self.data['status']
+
+    def set_status(self, status):
+        """
+        Setter for status
+        """
+        self.data['status'] = status
 
     def get_condor_status(self):
         return self.data['condor_status']
@@ -192,11 +203,12 @@ class Gridpack():
                 'export HOME=$(pwd)',
                 'export ORG_PWD=$(pwd)',
                 f'wget {gen_archive} -O gen_productions.tar.gz',
-                f'tar -xzf gen_productions.tar.gz',
+                'tar -xzf gen_productions.tar.gz',
+                'rm gen_productions.tar.gz',
                 f'mv genproductions-{genproductions} genproductions',
                 f'mv cards.tar.gz genproductions/bin/{generator}',
                 f'cd genproductions/bin/{generator}',
-                f'tar -xzf cards.tar.gz',
+                'tar -xzf cards.tar.gz',
                 f'./gridpack_generation.sh {dataset_name} cards',
                 f'mv {dataset_name}*.xz $ORG_PWD']
 

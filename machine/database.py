@@ -5,6 +5,7 @@ import logging
 import time
 import json
 import os
+from utils import clean_split
 from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError
 
@@ -120,7 +121,9 @@ class Database:
         """
         Get list of gridpacks with given status
         """
-        gridpacks = self.gridpacks.find({'status': status})
+        status = clean_split(status)
+        query = {'$or': [{'status': s} for s in status]}
+        gridpacks = self.gridpacks.find(query)
         return list(gridpacks)
 
     def get_gridpacks_with_condor_status(self, status):

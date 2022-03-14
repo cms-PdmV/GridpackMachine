@@ -1,12 +1,13 @@
-import shutil
 import time
 import logging
 import os
+import zipfile
 from os import listdir
 from os.path import isdir
 from os.path import join as path_join
 from database import Database
 from gridpack import Gridpack
+from email_sender import EmailSender
 from utils import get_git_tags, get_jobs_in_condor
 from ssh_executor import SSHExecutor
 
@@ -78,7 +79,7 @@ class Controller():
         if self.gridpacks_to_reset:
             # Reset gridpacks
             self.logger.info('Gridpacks to reset: %s', ','.join(self.gridpacks_to_reset))
-            for gridpack_id in self.gridpacks_to_delete:
+            for gridpack_id in self.gridpacks_to_reset:
                 self.reset_gridpack(gridpack_id)
 
             self.gridpacks_to_reset = []
@@ -121,9 +122,7 @@ class Controller():
         """
         gridpack_id = str(int(time.time() * 1000))
         gridpack.data['_id'] = gridpack_id
-        gridpack.data['condor_id'] = 0
-        gridpack.data['condor_status'] = '<unknown>'
-        gridpack.data['status'] = 'new'
+        gridpack.reset()
         self.database.create_gridpack(gridpack)
         self.logger.info('Gridpack %s was created', gridpack)
         return gridpack_id
@@ -143,9 +142,11 @@ class Controller():
         """
         gridpack_json = self.database.get_gridpack(gridpack_id)
         if not gridpack_json:
+            self.logger.error('Cannot reset %s because it is not in database', gridpack_id)
             return
 
         gridpack = Gridpack(gridpack_json)
+        self.logger.info('Reseting %s', gridpack)
         self.terminate_gridpack(gridpack)
         gridpack.reset()
         self.database.update_gridpack(gridpack)
@@ -170,7 +171,10 @@ class Controller():
         self.logger.info('Trying to terminate %s', gridpack)
         condor_id = gridpack.get_condor_id()
         if condor_id > 0:
-            self.ssh_executor.execute_command(f'module load lxbatch/tzero && condor_rm {condor_id}')
+            submission_host = self.config.get('submission_host')
+            ssh_credentials = self.config.get('ssh_credentials')
+            with SSHExecutor(submission_host, ssh_credentials) as ssh:
+                ssh.execute_command(f'condor_rm {condor_id}')
         else:
             self.logger.info('Gridpack %s HTCondor id %s is not valid', gridpack, condor_id)
 
@@ -181,27 +185,164 @@ class Controller():
         gridpack.rmdir()
         gridpack.mkdir()
 
-        gridpack.prepare_card_archive()
-        gridpack.prepare_script(self.config['gen_repository'])
-        gridpack.prepare_jds_file()
+        try:
+            self.logger.info('Will create files for %s', gridpack)
+            # Prepare files
+            gridpack.prepare_card_archive()
+            gridpack.prepare_script(self.config['gen_repository'])
+            gridpack.prepare_jds_file()
+            self.logger.info('Done preparing:\n%s', os.popen('ls -l %s' % (gridpack.local_dir())).read())
 
-        self.logger.info('Done preparing:\n%s', os.popen('ls -l %s' % (gridpack.local_dir())).read())
-        # gridpack.rmdir()
+            self.logger.info('Will prepare remote directory for %s', gridpack)
+            # Prepare remote directory. Delete old one and create a new one
+            gridpack_id = gridpack.get_id()
+            remote_directory_base = self.config['remote_directory']
+            remote_directory = f'{remote_directory_base}/{gridpack_id}'
+            submission_host = self.config.get('submission_host')
+            ssh_credentials = self.config.get('ssh_credentials')
+            with SSHExecutor(submission_host, ssh_credentials) as ssh:
+                ssh.execute_command([f'rm -rf {remote_directory}',
+                                                f'mkdir -p {remote_directory}'])
+
+                self.logger.info('Will upload files for %s', gridpack)
+                # Upload gridpack cards.tar.gz, submit file and script to run
+                local_directory = gridpack.local_dir()
+                ssh.upload_file(f'{local_directory}/GRIDPACK_{gridpack_id}.sh',
+                                f'{remote_directory}/GRIDPACK_{gridpack_id}.sh',)
+                ssh.upload_file(f'{local_directory}/GRIDPACK_{gridpack_id}.jds',
+                                f'{remote_directory}/GRIDPACK_{gridpack_id}.jds',)
+                ssh.upload_file(f'{local_directory}/cards.tar.gz',
+                                f'{remote_directory}/cards.tar.gz',)
+
+                self.logger.info('Will try to submit %s', gridpack)
+                # Run condor_submit
+                # Submission happens through lxplus as condor is not available
+                # on website machine
+                # It is easier to ssh to lxplus than set up condor locally
+                stdout, stderr, _ = ssh.execute_command([f'cd {remote_directory}',
+                                                         f'condor_submit GRIDPACK_{gridpack_id}.jds'])
+
+            self.logger.debug(stdout)
+            self.logger.debug(stderr)
+            # Parse result of condor_submit
+            if stdout and '1 job(s) submitted to cluster' in stdout:
+                # output is "1 job(s) submitted to cluster 801341"
+                gridpack.set_status('submitted')
+                condor_id = int(float(stdout.split()[-1]))
+                gridpack.set_condor_id(condor_id)
+                gridpack.set_condor_status('IDLE')
+                self.logger.info('Submitted %s. Condor job id %s', gridpack, condor_id)
+            else:
+                self.logger.error('Error submitting %s.\nOutput: %s.\nError %s',
+                                  gridpack,
+                                  stdout,
+                                  stderr)
+                gridpack.set_status('failed')
+
+        except Exception as ex:
+            gridpack.set_status('failed')
+            self.logger.error('Exception while trying to submit %s: %s', gridpack, str(ex))
+
+        self.database.update_gridpack(gridpack)
 
     def update_condor_status(self, gridpack, condor_jobs):
         """
         Update condor status for given gridpack
         """
-        condor_id = gridpack.get_condor_id()
+        condor_id = str(gridpack.get_condor_id())
+        self.logger.debug('Condor id %s, status %s', condor_id, condor_jobs.get(condor_id))
         condor_status = condor_jobs.get(condor_id, 'REMOVED')
-        if condor_status != gridpack.get_condor_status():
-            return
-
         self.logger.info('Saving %s condor status as %s', gridpack, condor_status)
         gridpack.set_condor_status(condor_status)
         self.database.update_gridpack(gridpack)
 
+    def collect_output(self, gridpack):
+        """
+        When gridpack finishes running in HTCondor, download it's output logs,
+        zip them and send to relevant user via email
+        """
+        condor_status = gridpack.get_condor_status()
+        if condor_status not in ['DONE', 'REMOVED']:
+            self.logger.info('%s status is not DONE or REMOVED, it is %s', gridpack, condor_status)
+            return
+
+        self.logger.info('Collecting output for %s', gridpack)
+        remote_directory_base = self.config['remote_directory']
+        gridpack_id = gridpack.get_id()
+        remote_directory = f'{remote_directory_base}/{gridpack_id}'
+        submission_host = self.config.get('submission_host')
+        ssh_credentials = self.config.get('ssh_credentials')
+        local_directory = gridpack.local_dir()
+
+        with SSHExecutor(submission_host, ssh_credentials) as ssh:
+            ssh.download_file(f'{remote_directory}/job_log.log',
+                              f'{local_directory}/job_log.log')
+            ssh.download_file(f'{remote_directory}/log.out',
+                              f'{local_directory}/log.out')
+            ssh.download_file(f'{remote_directory}/log.err',
+                              f'{local_directory}/log.err')
+            ssh.execute_command([f'rm -rf {remote_directory}'])
+
+        downloaded_files = []
+        if os.path.isfile(f'{local_directory}/job_log.log'):
+            downloaded_files.append(f'{local_directory}/job_log.log')
+
+        if os.path.isfile(f'{local_directory}/log.out'):
+            downloaded_files.append(f'{local_directory}/log.out')
+
+        if os.path.isfile(f'{local_directory}/log.err'):
+            downloaded_files.append(f'{local_directory}/log.err')
+
+        attachments = []
+        if downloaded_files:
+            attachments = ['logs.zip']
+            with zipfile.ZipFile('logs.zip', 'w', zipfile.ZIP_DEFLATED) as zip_object:
+                for file_path in downloaded_files:
+                    zip_object.write(file_path, file_path.split('/')[-1])
+
+        if gridpack.get_status() != 'failed':
+            gridpack.set_status('done')
+            self.send_done_notification(gridpack, files=attachments)
+        else:
+            self.send_failed_notification(gridpack, files=attachments)
+
+        gridpack.rmdir()
+        self.database.update_gridpack(gridpack)
+
     def set_config(self, config):
+        """
+        Set config to controller
+        """
         self.config = config
         self.database = Database()
         self.repository_tick_pause = int(config['repository_tick_pause'])
+
+    def send_done_notification(self, gridpack, files=None):
+        """
+        Send email notification that gridpack has successfully finished
+        """
+        gridpack_name = gridpack.get_name()
+        body = 'Hello,\n\n'
+        body += f'Gridpack {gridpack_name} job has finished running.\n'
+        if files:
+            body += 'You can find job output as an attachment.\n'
+
+        subject = f'Gridpack {gridpack_name} is done'
+        recipients = []
+        emailer = EmailSender(self.config['ssh_credentials'])
+        emailer.send(subject, body, recipients, files)
+
+    def send_failed_notification(self, gridpack, files=None):
+        """
+        Send email notification that gridpack has failed
+        """
+        gridpack_name = gridpack.get_name()
+        body = 'Hello,\n\n'
+        body += f'Gridpack {gridpack_name} job has failed.\n'
+        if files:
+            body += 'You can find job output as an attachment.\n'
+
+        subject = f'Gridpack {gridpack_name} job failed'
+        recipients = []
+        emailer = EmailSender(self.config['ssh_credentials'])
+        emailer.send(subject, body, recipients, files)

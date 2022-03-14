@@ -70,9 +70,9 @@
     </div>
     <table>
       <tr>
+        <th>ID</th>
         <th>Campaign</th>
         <th>Generator</th>
-        <th>Process</th>
         <th>Dataset</th>
         <th>Beam energy</th>
         <th>Tune</th>
@@ -83,15 +83,15 @@
         <th>Job status</th>
         <th>Job ID</th>
       </tr>
-      <tr v-for="gridpack in gridpacks" :key="gridpack.id">
+      <tr v-for="gridpack in gridpacks" :key="gridpack._id">
+        <td>
+          {{gridpack._id}}
+        </td>
         <td>
           {{gridpack.campaign}}
         </td>
         <td>
           {{gridpack.generator}}
-        </td>
-        <td>
-          {{gridpack.process}}
         </td>
         <td>
           {{gridpack.dataset}}
@@ -175,7 +175,10 @@
                     :disabled="wizard.events <= 0 || !wizard.tune.length || wizard.beam <= 0 || !wizard.genproductions.length"
                     @click="createGridpack()"
                     data-dismiss="modal">Create gridpack</button>
-            <button type="button" class="btn btn-sm btn-secondary" data-dismiss="modal">Cancel</button>
+            <button type="button"
+                    class="btn btn-sm btn-secondary"
+                    data-dismiss="modal"
+                    @click="selectCampaign(undefined)">Cancel</button>
           </div>
         </div>
       </div>
@@ -234,6 +237,11 @@
           $.get("api/tick", function (data) {
             if (data.message != 'OK') {
               alert(data);
+            } else {
+              setTimeout(() => {
+                component.getSystemInfo();
+                component.getGridpacks();
+              }, 1000);
             }
           });
         },
@@ -242,6 +250,10 @@
           $.get("api/tick_repository", function (data) {
             if (data.message != 'OK') {
               alert(data);
+            } else {
+              setTimeout(() => {
+                component.getSystemInfo();
+              }, 1000);
             }
           });
         },

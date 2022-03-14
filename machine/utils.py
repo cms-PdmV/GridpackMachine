@@ -13,6 +13,13 @@ CONDOR_STATUS = {'0': 'UNEXPLAINED',
                  '6': 'SUBMISSION ERROR'}
 
 
+def clean_split(string, separator=',', maxsplit=-1):
+    """
+    Split a string by separator and collect only non-empty values
+    """
+    return [x.strip() for x in string.split(separator, maxsplit) if x.strip()]
+
+
 def run_command(command):
     """
     Run a bash command and return stdout, stderr and exit code
@@ -33,7 +40,7 @@ def get_jobs_in_condor(ssh=None):
     Fetch jobs from HTCondor
     Return a dictionary where key is job id and value is status (IDLE, RUN, ...)
     """
-    cmd = 'condor_q -af:h ClusterId JobStatus'
+    cmd = 'condor_q -af:h ClusterId JobStatus Cmd'
     if ssh:
         stdout, stderr, exit_code = ssh.execute_command(cmd)
     else:
@@ -63,7 +70,7 @@ def get_jobs_in_condor(ssh=None):
         job_status = columns[1]
         jobs_dict[job_id] = CONDOR_STATUS.get(job_status, 'REMOVED')
 
-    logger.info('Job status in HTCondor:%s', json.dumps(jobs_dict))
+    logger.info('Job status in HTCondor: %s', json.dumps(jobs_dict))
     return jobs_dict
 
 
