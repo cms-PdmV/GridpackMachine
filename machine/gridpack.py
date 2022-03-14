@@ -13,7 +13,7 @@ MEMORY = CORES * 2000
 class Gridpack():
 
     def __init__(self, data):
-        self.logger = logging.getLogger('logger')
+        self.logger = logging.getLogger()
         self.data = data
 
     def get_name(self):
@@ -34,8 +34,20 @@ class Gridpack():
     def get_condor_status(self):
         return self.data['condor_status']
 
+    def set_condor_status(self, condor_status):
+        """
+        Setter for condor status
+        """
+        self.data['condor_status'] = condor_status
+
     def get_condor_id(self):
         return self.data['condor_id']
+
+    def set_condor_id(self, condor_id):
+        """
+        Setter for condor id
+        """
+        self.data['condor_id'] = condor_id
 
     def get_json(self):
         return deepcopy(self.data)
@@ -168,14 +180,14 @@ class Gridpack():
         local_dir = self.local_dir()
         os.system(f"tar -czvf {local_dir}/cards.tar.gz -C {local_dir} cards")
 
-    def prepare_script(self):
+    def prepare_script(self, repository):
         """
         Make a bash script that will run in condor
         """
         generator = self.data['generator']
         dataset_name = self.data['dataset']
         genproductions = self.data['genproductions']
-        gen_archive = f"https://github.com/sihyunjeon/genproductions/archive/refs/tags/{genproductions}.tar.gz"
+        gen_archive = f"https://github.com/{repository}/archive/refs/tags/{genproductions}.tar.gz"
         command = ['#!/bin/sh',
                 'export HOME=$(pwd)',
                 'export ORG_PWD=$(pwd)',

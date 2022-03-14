@@ -7,13 +7,14 @@ from os.path import isdir
 from os.path import join as path_join
 from database import Database
 from gridpack import Gridpack
+from utils import get_git_tags, get_jobs_in_condor
 from ssh_executor import SSHExecutor
 
 
 class Controller():
 
     def __init__(self):
-        self.logger = logging.getLogger('logger')
+        self.logger = logging.getLogger()
         self.last_tick = 0
         self.last_repository_tick = 0
         self.config = {}
@@ -21,7 +22,7 @@ class Controller():
         self.database = None
         self.gridpacks_to_reset = []
         self.gridpacks_to_delete = []
-        self.ssh_executor = None
+        self.repository_tick_pause = 60
 
     def get_available_campaigns(self):
         """
@@ -50,8 +51,16 @@ class Controller():
         return tree
 
     def update_repository_tree(self):
+        now = int(time.time())
+        if now - self.repository_tick_pause < self.last_repository_tick:
+            self.logger.info('Not updating repository, last update happened recently')
+            return
+
+        tags = get_git_tags(self.config['gen_repository'])
+        tags = tags[::-1]
         self.repository_tree = {'campaigns': self.get_available_campaigns(),
-                                'cards': self.get_available_cards()}
+                                'cards': self.get_available_cards(),
+                                'tags': tags}
         self.last_repository_tick = int(time.time())
 
     def tick(self):
@@ -77,9 +86,16 @@ class Controller():
         # Check gridpacks
         gridpacks_to_check = self.database.get_gridpacks_with_status('submitted,running,finishing')
         self.logger.info('Gridpacks to check: %s', ','.join(g['_id'] for g in gridpacks_to_check))
+        condor_status = {}
+        if gridpacks_to_check:
+            submission_host = self.config.get('submission_host')
+            ssh_credentials = self.config.get('ssh_credentials')
+            with SSHExecutor(submission_host, ssh_credentials) as ssh:
+                condor_status = get_jobs_in_condor(ssh)
+
         for gridpack_json in gridpacks_to_check:
             gridpack = Gridpack(gridpack_json)
-            self.check_condor_status(gridpack)
+            self.update_condor_status(gridpack, condor_status)
             condor_status = gridpack.get_condor_status()
             if condor_status in ('DONE', 'REMOVED'):
                 # Refetch after check if running save
@@ -166,13 +182,26 @@ class Controller():
         gridpack.mkdir()
 
         gridpack.prepare_card_archive()
-        gridpack.prepare_script()
+        gridpack.prepare_script(self.config['gen_repository'])
         gridpack.prepare_jds_file()
 
         self.logger.info('Done preparing:\n%s', os.popen('ls -l %s' % (gridpack.local_dir())).read())
         # gridpack.rmdir()
 
+    def update_condor_status(self, gridpack, condor_jobs):
+        """
+        Update condor status for given gridpack
+        """
+        condor_id = gridpack.get_condor_id()
+        condor_status = condor_jobs.get(condor_id, 'REMOVED')
+        if condor_status != gridpack.get_condor_status():
+            return
+
+        self.logger.info('Saving %s condor status as %s', gridpack, condor_status)
+        gridpack.set_condor_status(condor_status)
+        self.database.update_gridpack(gridpack)
+
     def set_config(self, config):
         self.config = config
         self.database = Database()
-        self.ssh_executor = SSHExecutor(config)
+        self.repository_tick_pause = int(config['repository_tick_pause'])

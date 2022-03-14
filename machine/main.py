@@ -224,7 +224,7 @@ def main():
     args = vars(parser.parse_args())
     debug = args.get('debug', False)
     setup_console_logging(debug)
-    logger = logging.getLogger('logger')
+    logger = logging.getLogger()
     config = get_config()
     database_auth = config.get('database_auth')
     if database_auth:

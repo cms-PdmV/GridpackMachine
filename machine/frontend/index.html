@@ -110,6 +110,7 @@
         </td>
         <td>
           <span style="cursor: pointer;" @click="deleteGridpack(gridpack)">&#10007;</span>
+          <span style="cursor: pointer;" @click="resetGridpack(gridpack)">&#8634;</span>
         </td>
         <td>
           {{gridpack.status}}
@@ -157,7 +158,15 @@
               <tr><td>Events</td><td><input type="number" v-model="wizard.events"></td></tr>
               <tr><td>Tune</td><td><input type="text" v-model="wizard.tune"></td></tr>
               <tr><td>Beam evergy</td><td><input type="number" v-model="wizard.beam"></td></tr>
-              <tr><td>GENproductions</td><td><input type="text" v-model="wizard.genproductions"></td></tr>
+              <tr>
+                <td>GENproductions</td>
+                <td>
+                  <select v-model="wizard.genproductions">
+                    <option disabled value="">Please select one</option>
+                    <option v-for="tag in systemInfo.options.tags" :key="tag">{{tag}}</option>
+                  </select>
+                </td>
+              </tr>
             </table>
           </div>
           <div class="modal-footer">
@@ -277,18 +286,35 @@
               }
           });
         },
+        resetGridpack: function(gridpack) {
+          if (window.confirm('Reset ' + gridpack._id + '?')) {
+            const component = this;
+              $.ajax({
+                url: 'api/reset',
+                type: 'POST',
+                data: JSON.stringify(gridpack),
+                contentType: 'application/json',
+                success: function(result) {
+                  console.log(result);
+                  component.getGridpacks();
+                }
+            });
+          }
+        },
         deleteGridpack: function(gridpack) {
-          const component = this;
-            $.ajax({
-              url: 'api/delete',
-              type: 'DELETE',
-              data: JSON.stringify(gridpack),
-              contentType: 'application/json',
-              success: function(result) {
-                console.log(result);
-                component.getGridpacks();
-              }
-          });
+          if (window.confirm('Delete ' + gridpack._id + '?')) {
+            const component = this;
+              $.ajax({
+                url: 'api/delete',
+                type: 'DELETE',
+                data: JSON.stringify(gridpack),
+                contentType: 'application/json',
+                success: function(result) {
+                  console.log(result);
+                  component.getGridpacks();
+                }
+            });
+          }
         },
         secondsToDiff: function (s) {
             var days = Math.floor(s / 86400)
