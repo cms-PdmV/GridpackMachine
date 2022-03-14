@@ -109,3 +109,5 @@ nohup.out
 # pid file
 *.pid
 
+# Temp local files
+machine/gridpacks/

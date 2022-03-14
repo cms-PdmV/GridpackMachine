@@ -70,7 +70,7 @@ class Controller():
             # Reset gridpacks
             self.logger.info('Gridpacks to reset: %s', ','.join(self.gridpacks_to_reset))
             for gridpack_id in self.gridpacks_to_delete:
-                self.reset_gridpack(gridpack_id,)
+                self.reset_gridpack(gridpack_id)
 
             self.gridpacks_to_reset = []
 
@@ -93,8 +93,7 @@ class Controller():
             status = gridpack.get_status()
             if status == 'new':
                 # Double check and if it is new, submit it
-                # self.submit_to_condor(gridpack)
-                pass
+                self.submit_to_condor(gridpack)
 
         tick_end = time.time()
         self.last_tick = int(tick_end)
@@ -104,9 +103,7 @@ class Controller():
         """
         Add gridpack to the database 
         """
-        timestamp = int(time.time())
-        name = gridpack.get_name()
-        gridpack_id = f'{timestamp}__{name}'
+        gridpack_id = str(int(time.time() * 1000))
         gridpack.data['_id'] = gridpack_id
         gridpack.data['condor_id'] = 0
         gridpack.data['condor_status'] = '<unknown>'
@@ -123,25 +120,32 @@ class Controller():
         self.logger.info('Adding %s to delete list', gridpack_id)
         self.gridpacks_to_delete.append(gridpack_id)
 
-    def reset_gridpack(self, gridpack):
+    def reset_gridpack(self, gridpack_id):
         """
         Perform gridpack reset
         Terminate it in HTCondor and set to new so it would be submitted again
         """
+        gridpack_json = self.database.get_gridpack(gridpack_id)
+        if not gridpack_json:
+            return
+
+        gridpack = Gridpack(gridpack_json)
         self.terminate_gridpack(gridpack)
         gridpack.reset()
         self.database.update_gridpack(gridpack)
 
-    def delete_gridpack(self, gridpack):
+    def delete_gridpack(self, gridpack_id):
         """
         Terminate and delete gridpack
         """
+        gridpack_json = self.database.get_gridpack(gridpack_id)
+        if not gridpack_json:
+            return
+
+        gridpack = Gridpack(gridpack_json)
         self.terminate_gridpack(gridpack)
         self.database.delete_gridpack(gridpack)
-        gridpack_id = gridpack.get_id()
-        local_directory = f'gridpacks/{gridpack_id}'
-        if os.path.isdir(local_directory):
-            shutil.rmtree(local_directory, ignore_errors=True)
+        gridpack.rmdir()
 
     def terminate_gridpack(self, gridpack):
         """
@@ -156,6 +160,17 @@ class Controller():
 
         self.logger.info('Finished terminating gridpack %s', gridpack)
 
+    def submit_to_condor(self, gridpack):
+        self.logger.info('Submitting %s', gridpack)
+        gridpack.rmdir()
+        gridpack.mkdir()
+
+        gridpack.prepare_card_archive()
+        gridpack.prepare_script()
+        gridpack.prepare_jds_file()
+
+        self.logger.info('Done preparing:\n%s', os.popen('ls -l %s' % (gridpack.local_dir())).read())
+        # gridpack.rmdir()
 
     def set_config(self, config):
         self.config = config

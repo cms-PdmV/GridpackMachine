@@ -110,7 +110,7 @@ def reset_gridpack():
         return output_text({'message': 'Unauthorized'}, code=403)
 
     gridpack_dict = json.loads(request.data.decode('utf-8'))
-    gridpack_id = gridpack_dict.get('id')
+    gridpack_id = gridpack_dict.get('_id')
     if not gridpack_id:
         return output_text({'message': 'No ID'})
 
@@ -128,7 +128,7 @@ def delete_gridpack():
         return output_text({'message': 'Unauthorized'}, code=403)
 
     gridpack_dict = json.loads(request.data.decode('utf-8'))
-    gridpack_id = gridpack_dict.get('id')
+    gridpack_id = gridpack_dict.get('_id')
     if not gridpack_id:
         return output_text({'message': 'No ID'})
     

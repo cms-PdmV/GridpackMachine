@@ -78,6 +78,7 @@
         <th>Tune</th>
         <th>Events</th>
         <th>GEN productions</th>
+        <th>Actions</th>
         <th>Status</th>
         <th>Job status</th>
         <th>Job ID</th>
@@ -106,6 +107,9 @@
         </td>
         <td>
           {{gridpack.genproductions}}
+        </td>
+        <td>
+          <span style="cursor: pointer;" @click="deleteGridpack(gridpack)">&#10007;</span>
         </td>
         <td>
           {{gridpack.status}}
@@ -265,6 +269,19 @@
             $.ajax({
               url: 'api/create',
               type: 'PUT',
+              data: JSON.stringify(gridpack),
+              contentType: 'application/json',
+              success: function(result) {
+                console.log(result);
+                component.getGridpacks();
+              }
+          });
+        },
+        deleteGridpack: function(gridpack) {
+          const component = this;
+            $.ajax({
+              url: 'api/delete',
+              type: 'DELETE',
               data: JSON.stringify(gridpack),
               contentType: 'application/json',
               success: function(result) {
