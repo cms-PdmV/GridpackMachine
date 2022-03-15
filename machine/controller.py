@@ -87,16 +87,16 @@ class Controller():
         # Check gridpacks
         gridpacks_to_check = self.database.get_gridpacks_with_status('submitted,running,finishing')
         self.logger.info('Gridpacks to check: %s', ','.join(g['_id'] for g in gridpacks_to_check))
-        condor_status = {}
+        condor_jobs = {}
         if gridpacks_to_check:
             submission_host = Config.get('submission_host')
             ssh_credentials = Config.get('ssh_credentials')
             with SSHExecutor(submission_host, ssh_credentials) as ssh:
-                condor_status = get_jobs_in_condor(ssh)
+                condor_jobs = get_jobs_in_condor(ssh)
 
         for gridpack_json in gridpacks_to_check:
             gridpack = Gridpack(gridpack_json)
-            self.update_condor_status(gridpack, condor_status)
+            self.update_condor_status(gridpack, condor_jobs)
             condor_status = gridpack.get_condor_status()
             if condor_status in ('DONE', 'REMOVED'):
                 # Refetch after check if running save
@@ -124,7 +124,7 @@ class Controller():
         gridpack.data['_id'] = gridpack_id
         gridpack.reset()
         gridpack.data['history'] = []
-        gridpack.add_history_entry('create')
+        gridpack.add_history_entry('created')
         self.database.create_gridpack(gridpack)
         self.logger.info('Gridpack %s was created', gridpack)
         return gridpack_id
@@ -235,18 +235,18 @@ class Controller():
                 gridpack.set_condor_id(condor_id)
                 gridpack.set_condor_status('IDLE')
                 self.logger.info('Submitted %s. Condor job id %s', gridpack, condor_id)
-                gridpack.add_history_entry(f'submit {condor_id}')
+                gridpack.add_history_entry('submitted')
             else:
                 self.logger.error('Error submitting %s.\nOutput: %s.\nError %s',
                                   gridpack,
                                   stdout,
                                   stderr)
                 gridpack.set_status('failed')
-                gridpack.add_history_entry('submit failed')
+                gridpack.add_history_entry('submission failed')
 
         except Exception as ex:
             gridpack.set_status('failed')
-            gridpack.add_history_entry('submit failed')
+            gridpack.add_history_entry('submission failed')
             self.logger.error('Exception while trying to submit %s: %s', gridpack, str(ex))
 
         self.database.update_gridpack(gridpack)
@@ -256,7 +256,6 @@ class Controller():
         Update condor status for given gridpack
         """
         condor_id = str(gridpack.get_condor_id())
-        self.logger.debug('Condor id %s, status %s', condor_id, condor_jobs.get(condor_id))
         condor_status = condor_jobs.get(condor_id, 'REMOVED')
         self.logger.info('Saving %s condor status as %s', gridpack, condor_status)
         if condor_status != gridpack.get_condor_status():

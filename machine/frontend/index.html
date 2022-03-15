@@ -3,6 +3,7 @@
 <head>
   <title>Gridpack Extravaganza</title>
   <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+  <script src="static/moment.min.js"></script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.1/dist/js/bootstrap.bundle.min.js"></script>
@@ -65,10 +66,8 @@
     <div class="container">
       <header class="elevation-3">
         <div style="height: 64px; text-decoration: none; color: rgba(0, 0, 0, 0.87); justify-content: space-between;">
-          <a href="/gridpack/">
-            <div class="headline">
-              <span>Grid</span><span class="font-weight-light">pack</span>
-            </div>
+          <a href="/gridpack/" class="headline">
+            <span>Grid</span><span class="font-weight-light">pack</span>
           </a>
           <div style="text-align: right; line-height: 28px;">
             <small class="font-weight-light">Logged in as</small> {{user.name}}
@@ -81,34 +80,29 @@
     <div class="container" style="padding-top: 76px;">
     </div>
 
-    <div class="container mt-4" style="text-align: center;">
-      <button type="button" class="btn btn-success btn-sm" data-toggle="modal" data-target="#createGridpackModal">Create</button>
-      <button type="button" class="btn btn-info btn-sm" @click="forceTick()">Machine tick</button>
-      <button type="button" class="btn btn-info btn-sm" @click="forceRepositoryTick()">Refresh repository</button>
-    </div>
-    <div class="container mt-4" style="text-align: center;">
-      Tick {{systemInfo.lastTickNice}} ago | Repository {{systemInfo.lastTicRepositorykNice}} ago | {{user.fullname}}
+    <div class="container mt-4" style="text-align: center;" v-if="user.authorized">
+      <button type="button" class="btn btn-success btn-sm elevation-3 ml-1 mr-1" data-toggle="modal" data-target="#createGridpackModal">New gridpack</button>
+      <button type="button" class="btn btn-info btn-sm elevation-3 ml-1 mr-1" @click="forceTick()">Machine tick</button>
+      <button type="button" class="btn btn-info btn-sm elevation-3 ml-1 mr-1" @click="forceRepositoryTick()">Refresh repository</button>
+      <div class="mt-2">
+        <small>Machine tick {{systemInfo.lastTickNice}} ago | Repository refresh {{systemInfo.lastTickRepositoryNice}} ago</small>
+      </div>
     </div>
     <table>
       <tr>
-        <th>ID</th>
         <th>Campaign</th>
         <th>Generator</th>
         <th>Dataset</th>
+        <th>Actions</th>
         <th>Beam energy</th>
         <th>Tune</th>
         <th>Events</th>
         <th>GEN productions</th>
-        <th>Actions</th>
         <th>Status</th>
-        <th>Job status</th>
-        <th>Job ID</th>
+        <th>Job</th>
         <th>History</th>
       </tr>
       <tr v-for="gridpack in gridpacks" :key="gridpack._id">
-        <td>
-          {{gridpack._id}}
-        </td>
         <td>
           {{gridpack.campaign}}
         </td>
@@ -119,34 +113,31 @@
           {{gridpack.dataset}}
         </td>
         <td>
+          <span style="cursor: pointer;" title="Delete gridpack job" @click="deleteGridpack(gridpack)">&#10007;</span>
+          <span style="cursor: pointer;" title="Reset job" @click="resetGridpack(gridpack)">&#8634;</span>
+        </td>
+        <td>
           {{gridpack.beam}}
         </td>
         <td>
           {{gridpack.tune}}
         </td>
         <td>
-          {{gridpack.events}}
+          {{gridpack.eventsNice}}
         </td>
         <td>
           {{gridpack.genproductions}}
         </td>
         <td>
-          <span style="cursor: pointer;" @click="deleteGridpack(gridpack)">&#10007;</span>
-          <span style="cursor: pointer;" @click="resetGridpack(gridpack)">&#8634;</span>
-        </td>
-        <td>
           {{gridpack.status}}
         </td>
         <td>
-          {{gridpack.condor_status}}
+          <pre style="margin: 0">{{gridpack.condor_status}} ({{gridpack.condor_id}})</pre>
         </td>
         <td>
-          {{gridpack.condor_id}}
-        </td>
-        <td>
-          <ol>
-            <li v-for="entry in gridpack.history">{{entry.user}} {{entry.time}} {{entry.action}}</li>
-          </ol>
+          <ul style="text-align: left">
+            <li v-for="entry in gridpack.newestHistory">{{entry.timeNiceShort}} {{entry.action}} <small>({{entry.user}})</small></li>
+          </ul>
         </td>
       </tr>
     </table>
@@ -235,6 +226,7 @@
         this.getUserInfo();
         this.getSystemInfo();
         this.getGridpacks();
+        setInterval(this.updateTickDisplay, 1000);
       },
       methods: {
         getUserInfo: function() {
@@ -247,15 +239,28 @@
           const component = this;
           $.get("api/system_info", function (data) {
             component.systemInfo = data;
-            let now = parseInt(Date.now() / 1000)
-            component.systemInfo.lastTickNice = component.secondsToDiff(now - data.last_tick);
-            component.systemInfo.lastTicRepositorykNice = component.secondsToDiff(now - data.last_repository_tick);
+            component.updateTickDisplay();
           });
+        },
+        updateTickDisplay: function() {
+          let now = parseInt(Date.now() / 1000);
+          this.$set(this.systemInfo, 'lastTickNice', this.secondsToDiff(now - this.systemInfo.last_tick))
+          this.$set(this.systemInfo, 'lastTickRepositoryNice', this.secondsToDiff(now - this.systemInfo.last_repository_tick))
         },
         getGridpacks: function() {
           const component = this;
           $.get("api/get", function (data) {
             component.gridpacks = data[0];
+            for (let gridpack of component.gridpacks) {
+              gridpack.eventsNice = gridpack.events.toLocaleString('en-US');
+              for (let entry of gridpack.history) {
+                entry.timeNice = moment(new Date(entry.time * 1000.0)).format('YYYY-MM-DD HH:mm');
+              }
+              gridpack.newestHistory = gridpack.history.slice(-3);
+              for (let entry of gridpack.newestHistory) {
+                entry.timeNiceShort = moment(new Date(entry.time * 1000.0)).format('MMM DD HH:mm');
+              }
+            }
             component.totalGridpacks = data[1];
           });
         },
@@ -358,19 +363,20 @@
         secondsToDiff: function (s) {
             var days = Math.floor(s / 86400)
             var hours = Math.floor((s - (days * 86400)) / 3600)
-            var minutes = Math.round((s - (days * 86400 + hours * 3600)) / 60)
-            if (days == 0 && hours == 0 && minutes == 0) {
-                return parseInt(s) + 's'
-            }
+            var minutes = Math.floor((s - (days * 86400 + hours * 3600)) / 60)
+            var seconds = s - days * 86400 - hours * 3600 - minutes * 60;
             var result = ''
             if (days > 0) {
-                result += days + 'd '
+              result += days + 'd '
             }
             if (hours > 0) {
-                result += hours + 'h '
+              result += hours + 'h '
             }
             if (minutes > 0) {
-                result += minutes + 'min'
+              result += minutes + 'min '
+            }
+            if (days == 0 && hours == 0 && minutes < 5) {
+              result += seconds + 's'
             }
             return result
           },

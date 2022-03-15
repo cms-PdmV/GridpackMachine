@@ -9,7 +9,7 @@ h5 {
 }
 
 a {
-  color: rgb(25, 118, 210) !important;
+  color: rgb(25, 118, 210);
 }
 
 ul {
@@ -20,15 +20,6 @@ ul {
 .elevation-3 {
   -webkit-box-shadow: 0 3px 3px -2px rgba(0,0,0,.2),0 3px 4px 0 rgba(0,0,0,.14),0 1px 8px 0 rgba(0,0,0,.12)!important;
   box-shadow: 0 3px 3px -2px rgba(0,0,0,.2),0 3px 4px 0 rgba(0,0,0,.14),0 1px 8px 0 rgba(0,0,0,.12)!important;
-}
-
-.card {
-  border-radius: 0 !important;
-  border: none !important;
-}
-
-.card-body {
-  padding: 8px 16px;
 }
 
 .bigger-text {
@@ -46,6 +37,12 @@ ul {
   font-weight: 400;
   letter-spacing: normal!important;
   color: rgba(0, 0, 0, 0.87);
+  text-decoration: none;
+}
+
+.headline:hover {
+  color: rgba(0, 0, 0, 0.87);
+  text-decoration: none;
 }
 
 header {
@@ -70,4 +67,11 @@ header > div {
   position: relative;
   z-index: 0;
   padding: 4px 16px;
+}
+
+.btn {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1.1px;
+  font-weight: 500;
 }
