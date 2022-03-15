@@ -153,9 +153,9 @@ def user_info_dict():
     fullname = request.headers.get('Adfs-Fullname', '')
     login = request.headers.get('Adfs-Login', '')
     email = request.headers.get('Adfs-Email', '')
-    authorized_user = is_user_authorized()
+    authorized = is_user_authorized()
     return {'login': login,
-            'authorized_user': authorized_user,
+            'authorized': authorized,
             'fullname': fullname,
             'email': email}
 
