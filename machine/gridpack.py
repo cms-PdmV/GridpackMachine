@@ -3,7 +3,10 @@ import logging
 import shutil
 import pathlib
 import json
+import time
 from copy import deepcopy
+from config import Config
+from user import User
 
 
 CORES = 8
@@ -105,6 +108,24 @@ class Gridpack():
         gridpack_id = self.get_id()
         return os.path.abspath(f'gridpacks/{gridpack_id}')
 
+    def add_history_entry(self, entry):
+        """
+        Add a simple string history entry
+        """
+        user = User().get_username()
+        timestamp = int(time.time())
+        entry = entry.strip()
+        self.data.setdefault('history', []).append({'user': user,
+                                                    'time': timestamp,
+                                                    'action': entry})
+
+    def get_users(self):
+        """
+        Return a list of unique usernames of users in history
+        """
+        users = set(x['user'] for x in self.data['history'] if x['user'] != 'automatic')
+        return sorted(list(users))
+
     def prepare_default_card(self):
         """
         Copy default cards to local directory
@@ -191,10 +212,11 @@ class Gridpack():
         local_dir = self.local_dir()
         os.system(f"tar -czvf {local_dir}/cards.tar.gz -C {local_dir} cards")
 
-    def prepare_script(self, repository):
+    def prepare_script(self):
         """
         Make a bash script that will run in condor
         """
+        repository = Config.get('gen_repository')
         generator = self.data['generator']
         dataset_name = self.data['dataset']
         genproductions = self.data['genproductions']

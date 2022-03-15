@@ -4,15 +4,15 @@ Module that contains start of the program, tick scheduler and web APIs
 import argparse
 import logging
 import json
-import configparser
 import os
-import time
 from flask import Flask, send_file, request, make_response
 from flask_restful import Api
 from scheduler import Scheduler
 from controller import Controller
 from gridpack import Gridpack
 from database import Database
+from config import Config
+from user import User
 
 
 app = Flask(__name__,
@@ -20,7 +20,7 @@ app = Flask(__name__,
             template_folder="./frontend")
 api = Api(app)
 scheduler = Scheduler()
-controller = Controller()
+controller = None
 
 
 @app.route('/')
@@ -150,36 +150,29 @@ def user_info_dict():
     """
     Get user name, login, email and authorized flag from request headers
     """
-    fullname = request.headers.get('Adfs-Fullname', '')
-    login = request.headers.get('Adfs-Login', '')
-    email = request.headers.get('Adfs-Email', '')
-    authorized = is_user_authorized()
-    return {'login': login,
-            'authorized': authorized,
-            'fullname': fullname,
-            'email': email}
+    return User().get_user_info()
 
 
 def is_user_authorized():
     """
     Return whether user is a member of administrators e-group
     """
-    # groups = [x.strip().lower() for x in request.headers.get('Adfs-Group', '???').split(';')]
-    logging.warning('Everyone is admin!')
-    return True  # 'cms-ppd-pdmv-val-admin-pdmv' in groups
+    return User().is_authorized()
 
 
 def tick():
     """
     Trigger controller to perform a tick
     """
-    controller.tick()
+    if controller:
+        controller.tick()
 
 def tick_repository():
     """
     Trigger controller to perform a tick on repository data
     """
-    controller.update_repository_tree()
+    if controller:
+        controller.update_repository_tree()
 
 
 def setup_console_logging(debug):
@@ -188,23 +181,6 @@ def setup_console_logging(debug):
     """
     logging.basicConfig(format='[%(asctime)s][%(levelname)s] %(message)s',
                         level=logging.DEBUG if debug else logging.INFO)
-
-
-def get_config():
-    """
-    Get config as a dictionary
-    """
-    config = configparser.ConfigParser()
-    config.read('config.cfg')
-    config = dict(config.items('DEFAULT'))
-    logging.info('Config values:')
-    for key, value in config.items():
-        if key in ('ssh_credentials', 'database_auth'):
-            logging.info('  %s: ******', key)
-        else:
-            logging.info('  %s: %s', key, value)
-
-    return config
 
 
 def main():
@@ -225,15 +201,16 @@ def main():
     debug = args.get('debug', False)
     setup_console_logging(debug)
     logger = logging.getLogger()
-    config = get_config()
-    database_auth = config.get('database_auth')
+    Config.load('config.cfg', 'DEFAULT')
+    database_auth = Config.get('database_auth')
     if database_auth:
         Database.set_credentials_file(database_auth)
 
+    global controller
+    controller = Controller()
     if not debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
-        controller.set_config(config)
-        tick_interval = int(config.get('tick_interval', 600))
-        repository_update_interval = int(config.get('repository_update_interval', 1200))
+        tick_interval = int(Config.get('tick_interval', 600))
+        repository_update_interval = int(Config.get('repository_update_interval', 1200))
         scheduler.add_job(tick, tick_interval)
         scheduler.add_job(tick_repository, repository_update_interval)
 

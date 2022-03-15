@@ -71,7 +71,7 @@
             </div>
           </a>
           <div style="text-align: right; line-height: 28px;">
-            <small class="font-weight-light">Logged in as</small> {{user.fullname}}
+            <small class="font-weight-light">Logged in as</small> {{user.name}}
             <img style="width: 16px; height: 16px; vertical-align: baseline;" v-if="user.authorized" src="static/star.png"/>
           </div>
         </div>
@@ -103,6 +103,7 @@
         <th>Status</th>
         <th>Job status</th>
         <th>Job ID</th>
+        <th>History</th>
       </tr>
       <tr v-for="gridpack in gridpacks" :key="gridpack._id">
         <td>
@@ -141,6 +142,11 @@
         </td>
         <td>
           {{gridpack.condor_id}}
+        </td>
+        <td>
+          <ol>
+            <li v-for="entry in gridpack.history">{{entry.user}} {{entry.time}} {{entry.action}}</li>
+          </ol>
         </td>
       </tr>
     </table>
