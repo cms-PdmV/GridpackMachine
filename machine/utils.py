@@ -13,6 +13,9 @@ CONDOR_STATUS = {'0': 'UNEXPLAINED',
                  '6': 'SUBMISSION ERROR'}
 
 
+TAGS_CACHE = {}
+
+
 def clean_split(string, separator=',', maxsplit=-1):
     """
     Split a string by separator and collect only non-empty values
@@ -74,16 +77,19 @@ def get_jobs_in_condor(ssh=None):
     return jobs_dict
 
 
-def get_git_tags(repository):
+def get_git_tags(repository, cache=True):
     """
     Return list of tags in the repostory
     """
-    headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64)'}
-    with ConnectionWrapper('https://api.github.com') as conn:
-        response = conn.api('GET', f'/repos/{repository}/git/refs/tags', headers=headers)
+    if not cache or repository not in TAGS_CACHE:
+        headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64)'}
+        with ConnectionWrapper('https://api.github.com') as conn:
+            response = conn.api('GET', f'/repos/{repository}/git/refs/tags', headers=headers)
 
-    response = json.loads(response.decode('utf-8'))
-    logger = logging.getLogger()
-    tags = [t['ref'].replace('refs/tags/', '') for t in response if t['ref'].startswith('refs/tags/')]
-    logger.debug('Found %s tags in %s: %s', len(tags), repository, tags)
-    return tags
+        response = json.loads(response.decode('utf-8'))
+        logger = logging.getLogger()
+        tags = [t['ref'].replace('refs/tags/', '') for t in response if t['ref'].startswith('refs/tags/')]
+        logger.debug('Found %s tags in %s', len(tags), repository)
+        TAGS_CACHE[repository] = tags
+
+    return TAGS_CACHE[repository]

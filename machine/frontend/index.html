@@ -328,7 +328,9 @@
                 console.log(result);
                 component.getGridpacks();
               }
-          });
+            }).fail(function(data) {
+              alert(data.responseJSON.message)
+            });
         },
         resetGridpack: function(gridpack) {
           if (window.confirm('Reset ' + gridpack._id + '?')) {

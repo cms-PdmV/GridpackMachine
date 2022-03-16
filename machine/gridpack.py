@@ -6,6 +6,7 @@ import json
 import time
 from copy import deepcopy
 from config import Config
+from utils import get_git_tags
 from user import User
 
 
@@ -26,7 +27,20 @@ class Gridpack():
         return f'{campaign}__{dataset}__{generator}'
 
     def validate(self):
-        pass
+        tags = get_git_tags(Config.get('gen_repository'), cache=True)
+        genproductions = self.data['genproductions']
+        if genproductions not in tags:
+            return f'Bad GEN productions tag "{genproductions}"'
+
+        beam = self.data['beam']
+        if beam <= 0:
+            return f'Bad beam "{beam}"'
+
+        events = self.data['events']
+        if events <= 0:
+            return f'Bad events "{events}"'
+
+        return None
 
     def reset(self):
         self.set_status('new')

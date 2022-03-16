@@ -57,7 +57,7 @@ class Controller():
             self.logger.info('Not updating repository, last update happened recently')
             return
 
-        tags = get_git_tags(Config.get('gen_repository'))
+        tags = get_git_tags(Config.get('gen_repository'), cache=False)
         tags = tags[::-1]
         self.repository_tree = {'campaigns': self.get_available_campaigns(),
                                 'cards': self.get_available_cards(),
@@ -303,8 +303,9 @@ class Controller():
 
         attachments = []
         if downloaded_files:
-            attachments = ['logs.zip']
-            with zipfile.ZipFile('logs.zip', 'w', zipfile.ZIP_DEFLATED) as zip_object:
+            zip_file_name = f'{local_directory}/logs.zip'
+            attachments.append(zip_file_name)
+            with zipfile.ZipFile(zip_file_name, 'w', zipfile.ZIP_DEFLATED) as zip_object:
                 for file_path in downloaded_files:
                     zip_object.write(file_path, file_path.split('/')[-1])
 
@@ -323,9 +324,16 @@ class Controller():
         """
         Send email notification that gridpack has successfully finished
         """
-        gridpack_name = gridpack.get_name()
+        gridpack_dict = gridpack.get_json()
+        campaign = gridpack_dict.get('campaign')
+        generator = gridpack_dict.get('generator')
+        dataset = gridpack_dict.get('dataset')
+        gridpack_id = gridpack.get_id()
+        gridpack_name = f'{campaign} {generator}-{dataset}'
+        service_url = Config.get('service_url')
         body = 'Hello,\n\n'
-        body += f'Gridpack {gridpack_name} job has finished running.\n'
+        body += f'Gridpack {gridpack_name} ({gridpack_id}) job has finished running.\n'
+        body += f'Gridpack job: {service_url}?q={gridpack_id}\n'
         if files:
             body += 'You can find job output as an attachment.\n'
 
@@ -338,9 +346,16 @@ class Controller():
         """
         Send email notification that gridpack has failed
         """
-        gridpack_name = gridpack.get_name()
+        gridpack_dict = gridpack.get_json()
+        campaign = gridpack_dict.get('campaign')
+        generator = gridpack_dict.get('generator')
+        dataset = gridpack_dict.get('dataset')
+        gridpack_id = gridpack.get_id()
+        gridpack_name = f'{campaign} {generator}-{dataset}'
+        service_url = Config.get('service_url')
         body = 'Hello,\n\n'
-        body += f'Gridpack {gridpack_name} job has failed.\n'
+        body += f'Gridpack {gridpack_name} ({gridpack_id}) job has failed.\n'
+        body += f'Gridpack job: {service_url}?q={gridpack_id}\n'
         if files:
             body += 'You can find job output as an attachment.\n'
 
