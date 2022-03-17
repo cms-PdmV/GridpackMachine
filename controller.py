@@ -8,7 +8,7 @@ from os.path import join as path_join
 from database import Database
 from gridpack import Gridpack
 from email_sender import EmailSender
-from utils import clean_split, get_git_branches, get_jobs_in_condor
+from utils import clean_split, get_git_branches, get_jobs_in_condor, run_command
 from ssh_executor import SSHExecutor
 from config import Config
 
@@ -30,9 +30,10 @@ class Controller():
         Get campaigns and campaign templates
         """
         tree = {}
-        campaigns = [c for c in listdir('../campaigns') if isdir(path_join('../campaigns', c))]
+        campaigns_dir = os.path.join(Config.get('gridpack_files_path'), 'campaigns')
+        campaigns = [c for c in listdir(campaigns_dir) if isdir(path_join(campaigns_dir, c))]
         for name in campaigns:
-            template_path = os.path.join('../campaigns', name, 'template')
+            template_path = os.path.join(campaigns_dir, name, 'template')
             generators = [g for g in listdir(template_path) if isdir(path_join(template_path, g))]
             tree[name] = generators
 
@@ -40,9 +41,10 @@ class Controller():
 
     def get_available_cards(self):
         tree = {}
-        generators = [c for c in listdir('../cards') if isdir(path_join('../cards', c))]
+        cards_dir = os.path.join(Config.get('gridpack_files_path'), 'cards')
+        generators = [c for c in listdir(cards_dir) if isdir(path_join(cards_dir, c))]
         for generator in generators:
-            generator_path = os.path.join('../cards', generator)
+            generator_path = os.path.join(cards_dir, generator)
             processes = [p for p in listdir(generator_path) if isdir(path_join(generator_path, p))]
             for process in processes:
                 process_path = os.path.join(generator_path, process)
@@ -59,6 +61,9 @@ class Controller():
 
         branches = get_git_branches(Config.get('gen_repository'), cache=False)
         branches = branches[::-1]
+        files_dir = Config.get('gridpack_files_path')
+        run_command([f'cd {files_dir}',
+                     'git pull'])
         self.repository_tree = {'campaigns': self.get_available_campaigns(),
                                 'cards': self.get_available_cards(),
                                 'branches': branches}
