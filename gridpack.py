@@ -91,7 +91,8 @@ class Gridpack():
         generator = self.data['generator']
         process = self.data['process']
         dataset_name = self.data['dataset']
-        cards_path = os.path.join('..', 'cards', generator, process, dataset_name)
+        files_dir = Config.get('gridpack_files_path')
+        cards_path = os.path.join(files_dir, 'cards', generator, process, dataset_name)
         dataset_dict_file = os.path.join(cards_path, f'{dataset_name}.json')
         self.logger.debug('Reading %s', dataset_dict_file)
         with open(dataset_dict_file) as input_file:
@@ -148,7 +149,8 @@ class Gridpack():
         generator = self.data['generator']
         process = self.data['process']
         dataset_name = self.data['dataset']
-        cards_path = os.path.join('..', 'cards', generator, process, dataset_name)
+        files_dir = Config.get('gridpack_files_path')
+        cards_path = os.path.join(files_dir, 'cards', generator, process, dataset_name)
         local_cards_path = os.path.join(self.local_dir(), 'cards')
         pathlib.Path(local_cards_path).mkdir(parents=True, exist_ok=True)
         self.logger.debug('Copying %s/*.dat to %s', cards_path, local_cards_path)
@@ -161,7 +163,8 @@ class Gridpack():
         campaign = self.data['campaign']
         generator = self.data['generator']
         dataset_name = self.data['dataset']
-        tamplate_path = os.path.join('..', 'campaigns', campaign, 'template', generator, 'run_card')
+        files_dir = Config.get('gridpack_files_path')
+        tamplate_path = os.path.join(files_dir, 'campaigns', campaign, 'template', generator, 'run_card')
         run_card_file_path = os.path.join(self.local_dir(), 'cards', f'{dataset_name}_run_card.dat')
         if "amcatnlo" in tamplate_path.lower():
             os.system(f"cp {tamplate_path}/NLO_run_card.dat {run_card_file_path}")
@@ -200,7 +203,8 @@ class Gridpack():
         campaign = self.data['campaign']
         generator = self.data['generator']
         dataset_name = self.data['dataset']
-        scheme_file = os.path.join('..', 'campaigns', campaign, 'template', generator, 'scheme', scheme_name)
+        files_dir = Config.get('gridpack_files_path')
+        scheme_file = os.path.join(files_dir, 'campaigns', campaign, 'template', generator, 'scheme', scheme_name)
         customized_file = os.path.join(self.local_dir(), 'cards',  f'{dataset_name}_customizecards.dat')
         self.logger.debug('Reading scheme file %s', scheme_file)
         with open(scheme_file) as scheme_file:

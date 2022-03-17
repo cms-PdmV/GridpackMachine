@@ -315,6 +315,9 @@ class Controller():
                 self.logger.debug(stdout)
                 self.logger.debug(stderr)
 
+            # Remove the directory
+            ssh.execute_command([f'rm -rf {remote_directory}'])
+
         downloaded_files = []
         if os.path.isfile(f'{local_directory}/job.log'):
             downloaded_files.append(f'{local_directory}/job.log')
