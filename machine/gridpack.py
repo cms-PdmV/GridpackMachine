@@ -10,7 +10,7 @@ from utils import get_git_branches
 from user import User
 
 
-CORES = 2
+CORES = 8
 MEMORY = CORES * 2000
 
 
@@ -275,8 +275,8 @@ class Gridpack():
                'transfer_input_files    = cards.tar.gz',
                'when_to_transfer_output = on_exit',
                'should_transfer_files   = yes',
-               # '+JobFlavour             = "testmatch"',
-               '+JobFlavour             = "longlunch"',
+               '+JobFlavour             = "testmatch"',
+               # '+JobFlavour             = "longlunch"',
                'output                  = output.log',
                'error                   = error.log',
                'log                     = job.log',
