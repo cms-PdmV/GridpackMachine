@@ -6,11 +6,11 @@ import json
 import time
 from copy import deepcopy
 from config import Config
-from utils import get_git_tags
+from utils import get_git_branches
 from user import User
 
 
-CORES = 8
+CORES = 2
 MEMORY = CORES * 2000
 
 
@@ -27,10 +27,10 @@ class Gridpack():
         return f'{campaign}__{dataset}__{generator}'
 
     def validate(self):
-        tags = get_git_tags(Config.get('gen_repository'), cache=True)
+        branches = get_git_branches(Config.get('gen_repository'), cache=True)
         genproductions = self.data['genproductions']
-        if genproductions not in tags:
-            return f'Bad GEN productions tag "{genproductions}"'
+        if genproductions not in branches:
+            return f'Bad GEN productions branch "{genproductions}"'
 
         beam = self.data['beam']
         if beam <= 0:
@@ -44,6 +44,7 @@ class Gridpack():
 
     def reset(self):
         self.set_status('new')
+        self.data['archive'] = ''
         self.set_condor_status('')
         self.set_condor_id(0)
 
@@ -234,19 +235,27 @@ class Gridpack():
         generator = self.data['generator']
         dataset_name = self.data['dataset']
         genproductions = self.data['genproductions']
-        gen_archive = f"https://github.com/{repository}/archive/refs/tags/{genproductions}.tar.gz"
         command = ['#!/bin/sh',
-                'export HOME=$(pwd)',
-                'export ORG_PWD=$(pwd)',
-                f'wget {gen_archive} -O gen_productions.tar.gz',
-                'tar -xzf gen_productions.tar.gz',
-                'rm gen_productions.tar.gz',
-                f'mv genproductions-{genproductions} genproductions',
-                f'mv cards.tar.gz genproductions/bin/{generator}',
-                f'cd genproductions/bin/{generator}',
-                'tar -xzf cards.tar.gz',
-                f'./gridpack_generation.sh {dataset_name} cards',
-                f'mv {dataset_name}*.xz $ORG_PWD']
+                   'export HOME=$(pwd)',
+                   'export ORG_PWD=$(pwd)',
+                   f'export NB_CORE={CORES}',
+                   f'wget https://github.com/{repository}/tarball/{genproductions} -O genproductions.tar.gz',
+                   'tar -xzvf genproductions.tar.gz',
+                   f'GEN_FOLDER=$(ls -1 | grep {repository.replace("/", "-")}- | head -n 1)',
+                   'echo $GEN_FOLDER',
+                   'mv $GEN_FOLDER genproductions',
+                   'cd genproductions',
+                   'git init',
+                   'cd ..',
+                   f'mv cards.tar.gz genproductions/bin/{generator}/',
+                   f'cd genproductions/bin/{generator}',
+                   'tar -xzvf cards.tar.gz',
+                   'echo "Running gridpack_generation.sh"',
+                   # Set "pdmv" queue
+                   f'./gridpack_generation.sh {dataset_name} cards pdmv',
+                   'echo "Archives after gridpack_generation.sh:"',
+                   'ls -lha *.tar.xz',
+                   f'mv {dataset_name}*.xz $ORG_PWD']
 
         script_name = f'GRIDPACK_{self.get_id()}.sh'
         script_path = os.path.join(self.local_dir(), script_name)
@@ -266,10 +275,11 @@ class Gridpack():
                'transfer_input_files    = cards.tar.gz',
                'when_to_transfer_output = on_exit',
                'should_transfer_files   = yes',
-               '+JobFlavour             = "testmatch"',
-               'output                  = log.out',
-               'error                   = log.err',
-               'log                     = job_log.log',
+               # '+JobFlavour             = "testmatch"',
+               '+JobFlavour             = "longlunch"',
+               'output                  = output.log',
+               'error                   = error.log',
+               'log                     = job.log',
                f'RequestCpus             = {CORES}',
                f'RequestMemory           = {MEMORY}',
                '+accounting_group       = highprio',

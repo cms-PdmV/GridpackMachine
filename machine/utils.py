@@ -13,7 +13,7 @@ CONDOR_STATUS = {'0': 'UNEXPLAINED',
                  '6': 'SUBMISSION ERROR'}
 
 
-TAGS_CACHE = {}
+BRANCHES_CACHE = {}
 
 
 def clean_split(string, separator=',', maxsplit=-1):
@@ -77,19 +77,19 @@ def get_jobs_in_condor(ssh=None):
     return jobs_dict
 
 
-def get_git_tags(repository, cache=True):
+def get_git_branches(repository, cache=True):
     """
-    Return list of tags in the repostory
+    Return list of branches in the repostory
     """
-    if not cache or repository not in TAGS_CACHE:
+    if not cache or repository not in BRANCHES_CACHE:
         headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64)'}
         with ConnectionWrapper('https://api.github.com') as conn:
-            response = conn.api('GET', f'/repos/{repository}/git/refs/tags', headers=headers)
+            response = conn.api('GET', f'/repos/{repository}/branches', headers=headers)
 
         response = json.loads(response.decode('utf-8'))
         logger = logging.getLogger()
-        tags = [t['ref'].replace('refs/tags/', '') for t in response if t['ref'].startswith('refs/tags/')]
-        logger.debug('Found %s tags in %s', len(tags), repository)
-        TAGS_CACHE[repository] = tags
+        branches = [b['name'] for b in response if b.get('name')]
+        logger.debug('Found %s branches in %s', len(branches), repository)
+        BRANCHES_CACHE[repository] = branches
 
-    return TAGS_CACHE[repository]
+    return BRANCHES_CACHE[repository]

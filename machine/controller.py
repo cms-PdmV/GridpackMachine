@@ -8,7 +8,7 @@ from os.path import join as path_join
 from database import Database
 from gridpack import Gridpack
 from email_sender import EmailSender
-from utils import get_git_tags, get_jobs_in_condor
+from utils import clean_split, get_git_branches, get_jobs_in_condor
 from ssh_executor import SSHExecutor
 from config import Config
 
@@ -57,11 +57,11 @@ class Controller():
             self.logger.info('Not updating repository, last update happened recently')
             return
 
-        tags = get_git_tags(Config.get('gen_repository'), cache=False)
-        tags = tags[::-1]
+        branches = get_git_branches(Config.get('gen_repository'), cache=False)
+        branches = branches[::-1]
         self.repository_tree = {'campaigns': self.get_available_campaigns(),
                                 'cards': self.get_available_cards(),
-                                'tags': tags}
+                                'branches': branches}
         self.last_repository_tick = int(time.time())
 
     def tick(self):
@@ -75,7 +75,7 @@ class Controller():
                 self.delete_gridpack(gridpack_id)
 
             self.gridpacks_to_delete = []
-        
+
         if self.gridpacks_to_reset:
             # Reset gridpacks
             self.logger.info('Gridpacks to reset: %s', ','.join(self.gridpacks_to_reset))
@@ -118,7 +118,7 @@ class Controller():
 
     def create(self, gridpack):
         """
-        Add gridpack to the database 
+        Add gridpack to the database
         """
         gridpack_id = str(int(time.time() * 1000))
         gridpack.data['_id'] = gridpack_id
@@ -205,7 +205,7 @@ class Controller():
             ssh_credentials = Config.get('ssh_credentials')
             with SSHExecutor(submission_host, ssh_credentials) as ssh:
                 ssh.execute_command([f'rm -rf {remote_directory}',
-                                                f'mkdir -p {remote_directory}'])
+                                     f'mkdir -p {remote_directory}'])
 
                 self.logger.info('Will upload files for %s', gridpack)
                 # Upload gridpack cards.tar.gz, submit file and script to run
@@ -277,38 +277,66 @@ class Controller():
         self.logger.info('Collecting output for %s', gridpack)
         remote_directory_base = Config.get('remote_directory')
         gridpack_id = gridpack.get_id()
+        dataset_name = gridpack.data['dataset']
         remote_directory = f'{remote_directory_base}/{gridpack_id}'
         submission_host = Config.get('submission_host')
         ssh_credentials = Config.get('ssh_credentials')
         local_directory = gridpack.local_dir()
 
+        stdout = ''
+        gridpack_archive = ''
         with SSHExecutor(submission_host, ssh_credentials) as ssh:
-            ssh.download_file(f'{remote_directory}/job_log.log',
-                              f'{local_directory}/job_log.log')
-            ssh.download_file(f'{remote_directory}/log.out',
-                              f'{local_directory}/log.out')
-            ssh.download_file(f'{remote_directory}/log.err',
-                              f'{local_directory}/log.err')
-            ssh.execute_command([f'rm -rf {remote_directory}'])
+            ssh.download_file(f'{remote_directory}/job.log',
+                              f'{local_directory}/job.log')
+            ssh.download_file(f'{remote_directory}/output.log',
+                              f'{local_directory}/output.log')
+            ssh.download_file(f'{remote_directory}/error.log',
+                              f'{local_directory}/error.log')
+            # Get gridpack archive name
+            stdout, stderr, _ = ssh.execute_command([f'ls -1 {remote_directory}/{dataset_name}*.tar.*z'])
+            self.logger.debug(stdout)
+            self.logger.debug(stderr)
+            stdout = clean_split(stdout, '\n')
+            for line in stdout:
+                filename = clean_split(line, '/')[-1]
+                if filename.startswith(dataset_name) and filename.endswith(('.tar.xz', '.tar.gz')):
+                    gridpack_archive = filename
+                    break
+
+            if gridpack_archive:
+                gridpack_directory = Config.get('gridpack_directory')
+                self.logger.info('Copying gridpack %s/%s->%s', remote_directory, gridpack_archive, gridpack_directory)
+                stdout, stderr, _ = ssh.execute_command(f'rsync -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" {remote_directory}/{gridpack_archive} lxplus.cern.ch:{gridpack_directory}')
+                self.logger.debug(stdout)
+                self.logger.debug(stderr)
 
         downloaded_files = []
-        if os.path.isfile(f'{local_directory}/job_log.log'):
-            downloaded_files.append(f'{local_directory}/job_log.log')
+        if os.path.isfile(f'{local_directory}/job.log'):
+            downloaded_files.append(f'{local_directory}/job.log')
 
-        if os.path.isfile(f'{local_directory}/log.out'):
-            downloaded_files.append(f'{local_directory}/log.out')
+        if os.path.isfile(f'{local_directory}/output.log'):
+            downloaded_files.append(f'{local_directory}/output.log')
 
-        if os.path.isfile(f'{local_directory}/log.err'):
-            downloaded_files.append(f'{local_directory}/log.err')
+        if os.path.isfile(f'{local_directory}/error.log'):
+            downloaded_files.append(f'{local_directory}/error.log')
+
+        # Attach the script file for debugging
+        if os.path.isfile(f'{local_directory}/GRIDPACK_{gridpack_id}.sh'):
+            downloaded_files.append(f'{local_directory}/GRIDPACK_{gridpack_id}.sh')
+
+        # Attach the cards archive for debugging
+        if os.path.isfile(f'{local_directory}/cards.tar.gz'):
+            downloaded_files.append(f'{local_directory}/cards.tar.gz')
 
         attachments = []
         if downloaded_files:
-            zip_file_name = f'{local_directory}/logs.zip'
+            zip_file_name = f'{local_directory}/gridpack_{gridpack_id}_files.zip'
             attachments.append(zip_file_name)
             with zipfile.ZipFile(zip_file_name, 'w', zipfile.ZIP_DEFLATED) as zip_object:
                 for file_path in downloaded_files:
                     zip_object.write(file_path, file_path.split('/')[-1])
 
+        gridpack.data['archive'] = gridpack_archive
         if gridpack.get_status() != 'failed':
             gridpack.set_status('done')
             gridpack.add_history_entry('done')
@@ -329,13 +357,13 @@ class Controller():
         generator = gridpack_dict.get('generator')
         dataset = gridpack_dict.get('dataset')
         gridpack_id = gridpack.get_id()
-        gridpack_name = f'{campaign} {generator}-{dataset}'
+        gridpack_name = f'{campaign} {dataset} {generator}'
         service_url = Config.get('service_url')
         body = 'Hello,\n\n'
         body += f'Gridpack {gridpack_name} ({gridpack_id}) job has finished running.\n'
         body += f'Gridpack job: {service_url}?q={gridpack_id}\n'
         if files:
-            body += 'You can find job output as an attachment.\n'
+            body += 'You can find job files as an attachment.\n'
 
         subject = f'Gridpack {gridpack_name} is done'
         recipients = [f'{user}@cern.ch' for user in gridpack.get_users()]
@@ -351,13 +379,13 @@ class Controller():
         generator = gridpack_dict.get('generator')
         dataset = gridpack_dict.get('dataset')
         gridpack_id = gridpack.get_id()
-        gridpack_name = f'{campaign} {generator}-{dataset}'
+        gridpack_name = f'{campaign} {dataset} {generator}'
         service_url = Config.get('service_url')
         body = 'Hello,\n\n'
         body += f'Gridpack {gridpack_name} ({gridpack_id}) job has failed.\n'
         body += f'Gridpack job: {service_url}?q={gridpack_id}\n'
         if files:
-            body += 'You can find job output as an attachment.\n'
+            body += 'You can find job files as an attachment.\n'
 
         subject = f'Gridpack {gridpack_name} job failed'
         recipients = [f'{user}@cern.ch' for user in gridpack.get_users()]

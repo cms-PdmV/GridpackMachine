@@ -81,7 +81,8 @@ def system_info():
     """
     return output_text({'last_tick': controller.last_tick,
                         'last_repository_tick': controller.last_repository_tick,
-                        'options': controller.repository_tree})
+                        'options': controller.repository_tree,
+                        'gen_repository': Config.get('gen_repository')})
 
 
 @app.route('/api/create', methods=['PUT'])

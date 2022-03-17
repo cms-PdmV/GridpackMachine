@@ -100,6 +100,7 @@
         <th>GEN productions</th>
         <th>Status</th>
         <th>Job</th>
+        <th>Gridpack</th>
         <th>History</th>
       </tr>
       <tr v-for="gridpack in gridpacks" :key="gridpack._id">
@@ -126,13 +127,16 @@
           {{gridpack.eventsNice}}
         </td>
         <td>
-          {{gridpack.genproductions}}
+          <a :href="'https://github.com/' + systemInfo.gen_repository + '/releases/tag/' + gridpack.genproductions" target="_blank">{{gridpack.genproductions}}</a>
         </td>
         <td>
           {{gridpack.status}}
         </td>
         <td>
           <pre style="margin: 0">{{gridpack.condor_status}} ({{gridpack.condor_id}})</pre>
+        </td>
+        <td>
+          {{gridpack.archive}}
         </td>
         <td>
           <ul style="text-align: left">
@@ -181,7 +185,7 @@
                 <td>
                   <select v-model="wizard.genproductions">
                     <option disabled value="">Please select one</option>
-                    <option v-for="tag in systemInfo.options.tags" :key="tag">{{tag}}</option>
+                    <option v-for="branch in systemInfo.options.branches" :key="branch">{{branch}}</option>
                   </select>
                 </td>
               </tr>
