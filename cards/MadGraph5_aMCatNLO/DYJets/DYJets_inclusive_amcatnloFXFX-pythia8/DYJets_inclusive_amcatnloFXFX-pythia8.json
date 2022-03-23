@@ -10,6 +10,15 @@
     "user":[
         "set run_card mll_sf 50",
         "set run_card ptj 10" 
+    ],
+
+    "fragment":[
+            "JetMatching:qCut = 30.",
+            "JetMatching:qCutME = 10.",
+            "JetMatching:nQmatch = 5",
+            "JetMatching:nJetMax = 2",
+            "TimeShower:mMaxGamma = 4.0"
     ]
+
 }
 

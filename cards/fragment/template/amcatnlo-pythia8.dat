@@ -1,5 +1,5 @@
 from Configuration.Generator.Pythia8CommonSettings_cfi import *
-from Configuration.Generator.__tuneImport__ import *
+from __tuneImport__ import *
 from Configuration.Generator.Pythia8aMCatNLOSettings_cfi import *
 from Configuration.Generator.PSweightsPythia.PythiaPSweightsSettings_cfi import *
 
@@ -10,7 +10,7 @@ generator = cms.EDFilter("Pythia8__concurrent__HadronizerFilter",
         pythia8aMCatNLOSettingsBlock,
         pythia8PSweightsSettingsBlock,
         processParameters = cms.vstring(
-            __processParameters__
+__processParameters__
         ),
         parameterSets = cms.vstring(
             'pythia8CommonSettings',
@@ -20,7 +20,7 @@ generator = cms.EDFilter("Pythia8__concurrent__HadronizerFilter",
             'pythia8PSweightsSettings',
         )
     ),
-    comEnergy = cms.double(__beamEnergy__),
+    comEnergy = cms.double(__comEnergy__),
     maxEventsToPrint = cms.untracked.int32(1),
     pythiaHepMCVerbosity = cms.untracked.bool(False),
     pythiaPylistVerbosity = cms.untracked.int32(1),

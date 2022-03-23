@@ -5,6 +5,5 @@ externalLHEProducer = cms.EDProducer('ExternalLHEProducer',
     outputFile = cms.string('cmsgrid_final.lhe'),
     scriptName = cms.FileInPath('GeneratorInterface/LHEInterface/data/run_generic_tarball_cvmfs.sh'),
     __generateConcurrently__
-#FIXME    generateConcurrently = cms.untracked.bool(True)"
 )
 

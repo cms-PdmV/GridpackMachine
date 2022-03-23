@@ -8,4 +8,4 @@ define vl~ = ve~ vm~ vt~
 generate p p > ell+ ell- $$ t t~ h @0
 add process p p > ell+ ell- j $$ t t~ h @1
 
-output DYJets_inclusive_madgraphMLM-pythia -nojpeg
+output DYJets_inclusive_madgraphMLM-pythia8 -nojpeg

@@ -2,6 +2,7 @@
 
 import os
 import sys
+import json
 import argparse
 
 parser = argparse.ArgumentParser()
@@ -29,6 +30,8 @@ parser.add_argument('--concurrent',
 
 args = parser.parse_args()
 
+dataset_name = f'{args.process}_{args.setting}_{args.generator}'
+cards_path = os.path.join('cards', args.directory, args.process, dataset_name)
 
 def addExternalLheProducer(fragmentLines):
 
@@ -66,10 +69,23 @@ def replaceFragmentLines(fragmentLines):
         fragmentLines = fragmentLines.replace("__generateConcurrently__", "")
         fragmentLines = fragmentLines.replace("__concurrent__", "")
 
-    #FIXME "__tuneImport__"
-
     fragmentLines = fragmentLines.replace("__tuneName__", args.tune)
-    fragmentLines = fragmentLines.replace("__beamEnergy__", args.beamEnergy)
+    fragmentLines = fragmentLines.replace("__comEnergy__", str(int(args.beamEnergy) * 2))
+
+    with open(os.path.join("cards", "fragment", "import.json")) as input_file:
+        import_dict = json.load(input_file)
+    try:
+        fragmentLines = fragmentLines.replace("__tuneImport__", import_dict[args.tune])
+    except:
+        sys.exit("error : unknown tune, unable to find import path")
+
+    with open(os.path.join(cards_path, f'{dataset_name}.json')) as input_file:
+        dataset_dict = json.load(input_file)
+
+    process_parameters = ""
+    for l in dataset_dict["fragment"]:
+        process_parameters += f"            '{l}',\n"
+    fragmentLines = fragmentLines.replace("__processParameters__", process_parameters)
 
     return fragmentLines
 

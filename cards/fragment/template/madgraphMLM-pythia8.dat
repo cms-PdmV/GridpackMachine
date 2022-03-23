@@ -1,5 +1,5 @@
 from Configuration.Generator.Pythia8CommonSettings_cfi import *
-from Configuration.Generator.__tuneImport__ import *
+from __tuneImport__ import *
 from Configuration.Generator.PSweightsPythia.PythiaPSweightsSettings_cfi import *
 
 generator = cms.EDFilter("Pythia8__concurrent__HadronizerFilter",
@@ -15,11 +15,8 @@ generator = cms.EDFilter("Pythia8__concurrent__HadronizerFilter",
             'JetMatching:etaJetMax = 5.',
             'JetMatching:coneRadius = 1.',
             'JetMatching:slowJetPower = 1',
-            'JetMatching:doShowerKt = off', #off for MLM matching, turn on for shower-kT matching,
-            __processParameters__
-#FIXME            'JetMatching:qCut = 19.', #this is the actual merging scale
-#FIXME            'JetMatching:nQmatch = 5', #5 for 5-flavour scheme (matching of b-quarks)
-#FIXME            'JetMatching:nJetMax = 4', #number of partons in born matrix element for highest multiplicity
+            'JetMatching:doShowerKt = off', 
+__processParameters__
         ),
         parameterSets = cms.vstring(
             'pythia8CommonSettings',
@@ -27,7 +24,7 @@ generator = cms.EDFilter("Pythia8__concurrent__HadronizerFilter",
             'pythia8PSweightsSettings',
         )
     ),
-    comEnergy = cms.double(__beamEnergy__),
+    comEnergy = cms.double(__comEnergy__),
     maxEventsToPrint = cms.untracked.int32(1),
     pythiaHepMCVerbosity = cms.untracked.bool(False),
     pythiaPylistVerbosity = cms.untracked.int32(1),
