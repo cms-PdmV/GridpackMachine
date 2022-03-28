@@ -20,12 +20,6 @@ class Gridpack():
         self.logger = logging.getLogger()
         self.data = data
 
-    def get_name(self):
-        campaign = self.data['campaign']
-        dataset = self.data['dataset']
-        generator = self.data['generator']
-        return f'{campaign}__{dataset}__{generator}'
-
     def validate(self):
         branches = get_git_branches(Config.get('gen_repository'), cache=True)
         genproductions = self.data['genproductions']
@@ -151,7 +145,7 @@ class Gridpack():
         dataset_name = self.data['dataset']
         files_dir = Config.get('gridpack_files_path')
         cards_path = os.path.join(files_dir, 'cards', generator, process, dataset_name)
-        local_cards_path = os.path.join(self.local_dir(), 'cards')
+        local_cards_path = os.path.join(self.local_dir(), 'input_cards')
         pathlib.Path(local_cards_path).mkdir(parents=True, exist_ok=True)
         self.logger.debug('Copying %s/*.dat to %s', cards_path, local_cards_path)
         os.system(f'cp {cards_path}/*.dat {local_cards_path}')
@@ -165,10 +159,10 @@ class Gridpack():
         dataset_name = self.data['dataset']
         files_dir = Config.get('gridpack_files_path')
         tamplate_path = os.path.join(files_dir, 'campaigns', campaign, 'template', generator, 'run_card')
-        run_card_file_path = os.path.join(self.local_dir(), 'cards', f'{dataset_name}_run_card.dat')
-        if "amcatnlo" in tamplate_path.lower():
+        run_card_file_path = os.path.join(self.local_dir(), 'input_cards', f'{dataset_name}_run_card.dat')
+        if dataset_name.rsplit("_", 1)[1].startswith("amcatnlo"):
             os.system(f"cp {tamplate_path}/NLO_run_card.dat {run_card_file_path}")
-        elif "madgraph" in tamplate_path.lower():
+        elif dataset_name.rsplit("_", 1)[1].startswith("madgraph"):
             os.system(f"cp {tamplate_path}/LO_run_card.dat {run_card_file_path}")
         else:
             self.logger.error('Could not find "amcatnlo" or "madgraph" in "%s"', dataset_name)
@@ -205,7 +199,7 @@ class Gridpack():
         dataset_name = self.data['dataset']
         files_dir = Config.get('gridpack_files_path')
         scheme_file = os.path.join(files_dir, 'campaigns', campaign, 'template', generator, 'scheme', scheme_name)
-        customized_file = os.path.join(self.local_dir(), 'cards',  f'{dataset_name}_customizecards.dat')
+        customized_file = os.path.join(self.local_dir(), 'input_cards',  f'{dataset_name}_customizecards.dat')
         self.logger.debug('Reading scheme file %s', scheme_file)
         with open(scheme_file) as scheme_file:
             scheme = scheme_file.read()
@@ -229,7 +223,7 @@ class Gridpack():
         self.prepare_run_card()
         self.prepare_customize_card()
         local_dir = self.local_dir()
-        os.system(f"tar -czvf {local_dir}/cards.tar.gz -C {local_dir} cards")
+        os.system(f"tar -czvf {local_dir}/input_cards.tar.gz -C {local_dir} input_cards")
 
     def prepare_script(self):
         """
@@ -244,19 +238,19 @@ class Gridpack():
                    'export ORG_PWD=$(pwd)',
                    f'export NB_CORE={CORES}',
                    f'wget https://github.com/{repository}/tarball/{genproductions} -O genproductions.tar.gz',
-                   'tar -xzvf genproductions.tar.gz',
+                   'tar -xzf genproductions.tar.gz',
                    f'GEN_FOLDER=$(ls -1 | grep {repository.replace("/", "-")}- | head -n 1)',
                    'echo $GEN_FOLDER',
                    'mv $GEN_FOLDER genproductions',
                    'cd genproductions',
                    'git init',
                    'cd ..',
-                   f'mv cards.tar.gz genproductions/bin/{generator}/',
+                   f'mv input_cards.tar.gz genproductions/bin/{generator}/',
                    f'cd genproductions/bin/{generator}',
-                   'tar -xzvf cards.tar.gz',
+                   'tar -xzf input_cards.tar.gz',
                    'echo "Running gridpack_generation.sh"',
                    # Set "pdmv" queue
-                   f'./gridpack_generation.sh {dataset_name} cards pdmv',
+                   f'./gridpack_generation.sh {dataset_name} input_cards pdmv',
                    'echo "Archives after gridpack_generation.sh:"',
                    'ls -lha *.tar.xz',
                    f'mv {dataset_name}*.xz $ORG_PWD']
@@ -276,7 +270,7 @@ class Gridpack():
         gridpack_id = self.get_id()
         script_name = f'GRIDPACK_{gridpack_id}.sh'
         jds = [f'executable              = {script_name}',
-               'transfer_input_files    = cards.tar.gz',
+               'transfer_input_files    = input_cards.tar.gz',
                'when_to_transfer_output = on_exit',
                'should_transfer_files   = yes',
                '+JobFlavour             = "testmatch"',
@@ -305,3 +299,14 @@ class Gridpack():
         self.logger.debug('Writing JDS to %s', jds_path)
         with open(jds_path, 'w') as jds_file:
             jds_file.write('\n'.join(jds))
+
+    def __str__(self) -> str:
+        gridpack_id = self.get_id()
+        campaign = self.data['campaign']
+        dataset = self.data['dataset']
+        generator = self.data['generator']
+        status = self.get_status()
+        condor_status = self.get_condor_status()
+        condor_id = self.get_condor_id()
+        return (f'Gridpack <{gridpack_id}> campaign={campaign} dataset={dataset} '
+                f'generator={generator} status={status} condor={condor_status} ({condor_id})')

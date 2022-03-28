@@ -11,6 +11,7 @@ from email_sender import EmailSender
 from utils import clean_split, get_git_branches, get_jobs_in_condor, run_command
 from ssh_executor import SSHExecutor
 from config import Config
+from threading import Lock
 
 
 class Controller():
@@ -24,6 +25,7 @@ class Controller():
         self.gridpacks_to_reset = []
         self.gridpacks_to_delete = []
         self.repository_tick_pause = 60
+        self.tick_lock = Lock()
 
     def get_available_campaigns(self):
         """
@@ -70,9 +72,17 @@ class Controller():
         self.last_repository_tick = int(time.time())
 
     def tick(self):
-        self.logger.info('Controller tick start')
-        tick_start = time.time()
+        with self.tick_lock:
+            self.logger.info('Controller tick start')
+            tick_start = time.time()
+            self.internal_tick()
+            tick_end = time.time()
+            self.last_tick = int(tick_end)
+            self.logger.info('Tick completed in %.2fs', tick_end - tick_start)
+            # Three second cooldown
+            time.sleep(3)
 
+    def internal_tick(self):
         # Delete gridpacks
         if self.gridpacks_to_delete:
             self.logger.info('Gridpacks to delete: %s', ','.join(self.gridpacks_to_delete))
@@ -116,10 +126,6 @@ class Controller():
             if status == 'new':
                 # Double check and if it is new, submit it
                 self.submit_to_condor(gridpack)
-
-        tick_end = time.time()
-        self.last_tick = int(tick_end)
-        self.logger.info('Tick completed in %.2fs', tick_end - tick_start)
 
     def create(self, gridpack):
         """
@@ -213,14 +219,14 @@ class Controller():
                                      f'mkdir -p {remote_directory}'])
 
                 self.logger.info('Will upload files for %s', gridpack)
-                # Upload gridpack cards.tar.gz, submit file and script to run
+                # Upload gridpack input_cards.tar.gz, submit file and script to run
                 local_directory = gridpack.local_dir()
                 ssh.upload_file(f'{local_directory}/GRIDPACK_{gridpack_id}.sh',
                                 f'{remote_directory}/GRIDPACK_{gridpack_id}.sh',)
                 ssh.upload_file(f'{local_directory}/GRIDPACK_{gridpack_id}.jds',
                                 f'{remote_directory}/GRIDPACK_{gridpack_id}.jds',)
-                ssh.upload_file(f'{local_directory}/cards.tar.gz',
-                                f'{remote_directory}/cards.tar.gz',)
+                ssh.upload_file(f'{local_directory}/input_cards.tar.gz',
+                                f'{remote_directory}/input_cards.tar.gz',)
 
                 self.logger.info('Will try to submit %s', gridpack)
                 # Run condor_submit
@@ -333,8 +339,8 @@ class Controller():
             downloaded_files.append(f'{local_directory}/GRIDPACK_{gridpack_id}.sh')
 
         # Attach the cards archive for debugging
-        if os.path.isfile(f'{local_directory}/cards.tar.gz'):
-            downloaded_files.append(f'{local_directory}/cards.tar.gz')
+        if os.path.isfile(f'{local_directory}/input_cards.tar.gz'):
+            downloaded_files.append(f'{local_directory}/input_cards.tar.gz')
 
         attachments = []
         if downloaded_files:

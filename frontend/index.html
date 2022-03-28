@@ -52,6 +52,9 @@
       padding-left: 4px;
       padding-right: 4px;
     }
+    select {
+      width: 98%;
+    }
     .sorted-by {
       background: #c8c8c8;
     }
@@ -158,16 +161,20 @@
           <div class="modal-body">
             <ul v-if="systemInfo.options && systemInfo.options.campaigns">
               <li v-for="(_, campaign) in systemInfo.options.campaigns">
-                <span class="wizard-option" @click="selectCampaign(campaign)">{{campaign}}</span>
+                <span class="wizard-option" v-if="wizard.campaign != campaign" @click="selectCampaign(campaign)">{{campaign}}</span>
+                <b v-if="wizard.campaign == campaign">{{campaign}}</b>
                 <ul v-if="wizard.campaign == campaign">
                   <li v-for="generator in systemInfo.options.campaigns[wizard.campaign]" >
-                    <span class="wizard-option" @click="selectGenerator(generator)">{{generator}}</span>
+                    <span class="wizard-option" v-if="wizard.generator != generator" @click="selectGenerator(generator)">{{generator}}</span>
+                    <b v-if="wizard.generator == generator">{{generator}}</b>
                     <ul v-if="wizard.generator == generator">
                       <li v-for="(_, process) in systemInfo.options.cards[wizard.generator]" >
-                        <span class="wizard-option" @click="selectProcess(process)">{{process}}</span>
+                        <span class="wizard-option" v-if="wizard.process != process" @click="selectProcess(process)">{{process}}</span>
+                        <b v-if="wizard.process == process">{{process}}</b>
                         <ul v-if="wizard.process == process">
                           <li v-for="dataset in systemInfo.options.cards[wizard.generator][wizard.process]">
-                            <span class="wizard-option" @click="selectDataset(dataset)">{{dataset}}</span>
+                            <span class="wizard-option" v-if="wizard.dataset != dataset" @click="selectDataset(dataset)">{{dataset}}</span>
+                            <b v-if="wizard.dataset == dataset">{{dataset}}</b>
                           </li>
                         </ul>
                       </li>
