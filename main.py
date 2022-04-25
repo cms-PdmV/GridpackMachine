@@ -95,7 +95,7 @@ def create_gridpack():
 
     logging.info('DATA %s', request.data.decode('utf-8'))
     gridpack_dict = json.loads(request.data.decode('utf-8'))
-    gridpack = Gridpack(gridpack_dict)
+    gridpack = Gridpack.make(gridpack_dict)
     error = gridpack.validate()
     if error:
         return output_text({'message': error}, code=400)

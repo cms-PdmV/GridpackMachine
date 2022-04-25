@@ -17,8 +17,27 @@ MEMORY = CORES * 2000
 class Gridpack():
 
     def __init__(self, data):
+        if self.__class__ is Gridpack:
+            raise TypeError('Gridpack is an abstract class. Instantiate it with a subclass.')
+
         self.logger = logging.getLogger()
         self.data = data
+
+    @staticmethod
+    def make(data):
+        """
+        Make gridpack of appropriate subclass given data
+        """
+        generator = data['generator']
+        if generator == "MadGraph5_aMCatNLO":
+            from madgraph_gridpack import MadgraphGridpack
+            return MadgraphGridpack(data)
+
+        if generator == 'Powheg':
+            from powheg_gridpack import PowhegGridpack
+            return PowhegGridpack(data)
+
+        raise Exception(f'Could not make gridpack for generator {generator}')
 
     def validate(self):
         branches = get_git_branches(Config.get('gen_repository'), cache=True)
@@ -77,16 +96,13 @@ class Gridpack():
 
     def get_dataset_dict(self):
         """
-        Return a dictionary from cards directory
+        Return a dictionary from Cards directory
         """
         if hasattr(self, 'dataset_dict'):
             return self.dataset_dict
 
-        generator = self.data['generator']
-        process = self.data['process']
         dataset_name = self.data['dataset']
-        files_dir = Config.get('gridpack_files_path')
-        cards_path = os.path.join(files_dir, 'cards', generator, process, dataset_name)
+        cards_path = self.get_cards_path()
         dataset_dict_file = os.path.join(cards_path, f'{dataset_name}.json')
         self.logger.debug('Reading %s', dataset_dict_file)
         with open(dataset_dict_file) as input_file:
@@ -94,6 +110,45 @@ class Gridpack():
 
         self.dataset_dict = dataset_dict
         return dataset_dict
+
+    def get_cards_path(self):
+        """
+        Return path to relevant cards directory
+        """
+        generator = self.data['generator']
+        process = self.data['process']
+        dataset_name = self.data['dataset']
+        files_dir = Config.get('gridpack_files_path')
+        cards_path = os.path.join(files_dir, 'Cards', generator, process, dataset_name)
+        return cards_path
+
+    def get_templates_path(self):
+        """
+        Return path to templates directory
+        """
+        campaign = self.data['campaign']
+        generator = self.data['generator']
+        files_dir = Config.get('gridpack_files_path')
+        template_path = os.path.join(files_dir, 'Campaigns', campaign, generator, 'Templates')
+        return template_path
+
+    def get_model_params_path(self):
+        """
+        Return path to model params directory
+        """
+        campaign = self.data['campaign']
+        generator = self.data['generator']
+        files_dir = Config.get('gridpack_files_path')
+        model_params_path = os.path.join(files_dir, 'Campaigns', campaign, generator, 'ModelParams')
+        return model_params_path
+
+    def get_job_files_path(self):
+        """
+        Return path of local job files
+        """
+        local_dir = self.local_dir()
+        job_files = os.path.join(local_dir, 'input_files')
+        return job_files
 
     def mkdir(self):
         """
@@ -136,94 +191,11 @@ class Gridpack():
         users = set(x['user'] for x in self.data['history'] if x['user'] != 'automatic')
         return sorted(list(users))
 
-    def prepare_default_card(self):
-        """
-        Copy default cards to local directory
-        """
-        generator = self.data['generator']
-        process = self.data['process']
-        dataset_name = self.data['dataset']
-        files_dir = Config.get('gridpack_files_path')
-        cards_path = os.path.join(files_dir, 'cards', generator, process, dataset_name)
-        local_cards_path = os.path.join(self.local_dir(), 'input_cards')
-        pathlib.Path(local_cards_path).mkdir(parents=True, exist_ok=True)
-        self.logger.debug('Copying %s/*.dat to %s', cards_path, local_cards_path)
-        os.system(f'cp {cards_path}/*.dat {local_cards_path}')
-
-    def prepare_run_card(self):
-        """
-        Copy cards from campaign template directory to local directory
-        """
-        campaign = self.data['campaign']
-        generator = self.data['generator']
-        dataset_name = self.data['dataset']
-        files_dir = Config.get('gridpack_files_path')
-        tamplate_path = os.path.join(files_dir, 'campaigns', campaign, 'template', generator, 'run_card')
-        run_card_file_path = os.path.join(self.local_dir(), 'input_cards', f'{dataset_name}_run_card.dat')
-        if dataset_name.rsplit("_", 1)[1].startswith("amcatnlo"):
-            os.system(f"cp {tamplate_path}/NLO_run_card.dat {run_card_file_path}")
-        elif dataset_name.rsplit("_", 1)[1].startswith("madgraph"):
-            os.system(f"cp {tamplate_path}/LO_run_card.dat {run_card_file_path}")
-        else:
-            self.logger.error('Could not find "amcatnlo" or "madgraph" in "%s"', dataset_name)
-            raise Exception()
-
-        with open(run_card_file_path) as input_file:
-            self.logger.debug('Reading %s...', run_card_file_path)
-            run_card_file = input_file.read()
-
-        dataset_dict = self.get_dataset_dict()
-        beam = str(self.data['beam'])
-        run_card_file = run_card_file.replace('$ebeam1', beam)
-        run_card_file = run_card_file.replace('$ebeam2', beam)
-        for key, value in dataset_dict.get('run_card', {}).items():
-            key = f'${key}'
-            self.logger.debug('Replacing "%s" with "%s" in %s', key, value, run_card_file_path)
-            run_card_file = run_card_file.replace(key, value)
-
-        with open(run_card_file_path, 'w') as output_file:
-            self.logger.debug('Writing %s...', run_card_file_path)
-            output_file.write(run_card_file)
-
-    def prepare_customize_card(self):
-        """
-        Copy cards from "scheme" directory and customize them
-        """
-        dataset_dict = self.get_dataset_dict()
-        scheme_name = dataset_dict.get('scheme')
-        if not scheme_name:
-            return
-
-        campaign = self.data['campaign']
-        generator = self.data['generator']
-        dataset_name = self.data['dataset']
-        files_dir = Config.get('gridpack_files_path')
-        scheme_file = os.path.join(files_dir, 'campaigns', campaign, 'template', generator, 'scheme', scheme_name)
-        customized_file = os.path.join(self.local_dir(), 'input_cards',  f'{dataset_name}_customizecards.dat')
-        self.logger.debug('Reading scheme file %s', scheme_file)
-        with open(scheme_file) as scheme_file:
-            scheme = scheme_file.read()
-
-        scheme = scheme.split('\n')
-        scheme += ['', '# User settings']
-        for user_line in dataset_dict.get('user', []):
-            self.logger.debug('Appeding %s', user_line)
-            scheme += [user_line]
-
-        scheme = '\n'.join(scheme)
-        self.logger.debug('Writing customized scheme file %s', customized_file)
-        with open(customized_file, 'w') as scheme_file:
-            scheme_file.write(scheme)
-
-    def prepare_card_archive(self):
+    def prepare_job_archive(self):
         """
         Make an archive with all necessary card files
         """
-        self.prepare_default_card()
-        self.prepare_run_card()
-        self.prepare_customize_card()
-        local_dir = self.local_dir()
-        os.system(f"tar -czvf {local_dir}/input_cards.tar.gz -C {local_dir} input_cards")
+        raise NotImplementedError('prepare_job_archive() must be implemented in subclass')
 
     def prepare_script(self):
         """
@@ -245,12 +217,12 @@ class Gridpack():
                    'cd genproductions',
                    'git init',
                    'cd ..',
-                   f'mv input_cards.tar.gz genproductions/bin/{generator}/',
+                   f'mv input_files.tar.gz genproductions/bin/{generator}/',
                    f'cd genproductions/bin/{generator}',
-                   'tar -xzf input_cards.tar.gz',
+                   'tar -xzf input_files.tar.gz',
                    'echo "Running gridpack_generation.sh"',
                    # Set "pdmv" queue
-                   f'./gridpack_generation.sh {dataset_name} input_cards pdmv',
+                   f'./gridpack_generation.sh {dataset_name} input_files pdmv',
                    'echo "Archives after gridpack_generation.sh:"',
                    'ls -lha *.tar.xz',
                    f'mv {dataset_name}*.xz $ORG_PWD']
@@ -270,7 +242,7 @@ class Gridpack():
         gridpack_id = self.get_id()
         script_name = f'GRIDPACK_{gridpack_id}.sh'
         jds = [f'executable              = {script_name}',
-               'transfer_input_files    = input_cards.tar.gz',
+               'transfer_input_files    = input_files.tar.gz',
                'when_to_transfer_output = on_exit',
                'should_transfer_files   = yes',
                '+JobFlavour             = "testmatch"',

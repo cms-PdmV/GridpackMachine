@@ -32,18 +32,18 @@ class Controller():
         Get campaigns and campaign templates
         """
         tree = {}
-        campaigns_dir = os.path.join(Config.get('gridpack_files_path'), 'campaigns')
+        campaigns_dir = os.path.join(Config.get('gridpack_files_path'), 'Campaigns')
         campaigns = [c for c in listdir(campaigns_dir) if isdir(path_join(campaigns_dir, c))]
         for name in campaigns:
-            template_path = os.path.join(campaigns_dir, name, 'template')
-            generators = [g for g in listdir(template_path) if isdir(path_join(template_path, g))]
+            campaign_path = os.path.join(campaigns_dir, name)
+            generators = [g for g in listdir(campaign_path) if isdir(path_join(campaign_path, g))]
             tree[name] = generators
 
         return tree
 
     def get_available_cards(self):
         tree = {}
-        cards_dir = os.path.join(Config.get('gridpack_files_path'), 'cards')
+        cards_dir = os.path.join(Config.get('gridpack_files_path'), 'Cards')
         generators = [c for c in listdir(cards_dir) if isdir(path_join(cards_dir, c))]
         for generator in generators:
             generator_path = os.path.join(cards_dir, generator)
@@ -110,7 +110,7 @@ class Controller():
                 condor_jobs = get_jobs_in_condor(ssh)
 
         for gridpack_json in gridpacks_to_check:
-            gridpack = Gridpack(gridpack_json)
+            gridpack = Gridpack.make(gridpack_json)
             self.update_condor_status(gridpack, condor_jobs)
             condor_status = gridpack.get_condor_status()
             if condor_status in ('DONE', 'REMOVED'):
@@ -121,7 +121,7 @@ class Controller():
         gridpacks_to_submit = self.database.get_gridpacks_with_status('new')
         self.logger.info('Gridpacks to submit: %s', ','.join(g['_id'] for g in gridpacks_to_submit))
         for gridpack_json in gridpacks_to_submit:
-            gridpack = Gridpack(gridpack_json)
+            gridpack = Gridpack.make(gridpack_json)
             status = gridpack.get_status()
             if status == 'new':
                 # Double check and if it is new, submit it
@@ -158,7 +158,7 @@ class Controller():
             self.logger.error('Cannot reset %s because it is not in database', gridpack_id)
             return
 
-        gridpack = Gridpack(gridpack_json)
+        gridpack = Gridpack.make(gridpack_json)
         self.logger.info('Reseting %s', gridpack)
         self.terminate_gridpack(gridpack)
         gridpack.reset()
@@ -173,7 +173,7 @@ class Controller():
         if not gridpack_json:
             return
 
-        gridpack = Gridpack(gridpack_json)
+        gridpack = Gridpack.make(gridpack_json)
         self.terminate_gridpack(gridpack)
         self.database.delete_gridpack(gridpack)
         gridpack.rmdir()
@@ -202,10 +202,11 @@ class Controller():
         try:
             self.logger.info('Will create files for %s', gridpack)
             # Prepare files
-            gridpack.prepare_card_archive()
+            gridpack.prepare_job_archive()
             gridpack.prepare_script()
             gridpack.prepare_jds_file()
-            self.logger.info('Done preparing:\n%s', os.popen('ls -l %s' % (gridpack.local_dir())).read())
+            self.logger.info('Done preparing:\n%s',
+                             os.popen('ls -l %s' % (gridpack.local_dir())).read())
 
             self.logger.info('Will prepare remote directory for %s', gridpack)
             # Prepare remote directory. Delete old one and create a new one
@@ -219,14 +220,14 @@ class Controller():
                                      f'mkdir -p {remote_directory}'])
 
                 self.logger.info('Will upload files for %s', gridpack)
-                # Upload gridpack input_cards.tar.gz, submit file and script to run
+                # Upload gridpack input_files.tar.gz, submit file and script to run
                 local_directory = gridpack.local_dir()
                 ssh.upload_file(f'{local_directory}/GRIDPACK_{gridpack_id}.sh',
                                 f'{remote_directory}/GRIDPACK_{gridpack_id}.sh',)
                 ssh.upload_file(f'{local_directory}/GRIDPACK_{gridpack_id}.jds',
                                 f'{remote_directory}/GRIDPACK_{gridpack_id}.jds',)
-                ssh.upload_file(f'{local_directory}/input_cards.tar.gz',
-                                f'{remote_directory}/input_cards.tar.gz',)
+                ssh.upload_file(f'{local_directory}/input_files.tar.gz',
+                                f'{remote_directory}/input_files.tar.gz',)
 
                 self.logger.info('Will try to submit %s', gridpack)
                 # Run condor_submit
@@ -339,8 +340,8 @@ class Controller():
             downloaded_files.append(f'{local_directory}/GRIDPACK_{gridpack_id}.sh')
 
         # Attach the cards archive for debugging
-        if os.path.isfile(f'{local_directory}/input_cards.tar.gz'):
-            downloaded_files.append(f'{local_directory}/input_cards.tar.gz')
+        if os.path.isfile(f'{local_directory}/input_files.tar.gz'):
+            downloaded_files.append(f'{local_directory}/input_files.tar.gz')
 
         attachments = []
         if downloaded_files:
