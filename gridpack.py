@@ -223,9 +223,9 @@ class Gridpack():
                    'echo "Running gridpack_generation.sh"',
                    # Set "pdmv" queue
                    f'./gridpack_generation.sh {dataset_name} input_files pdmv',
-                   'echo "Archives after gridpack_generation.sh:"',
+                   'echo ".tar.gz and .tar.xz archives after gridpack_generation.sh:"',
                    'ls -lha *.tar.*z',
-                   f'mv *{dataset_name}*.*z $ORG_PWD']
+                   f'mv *{dataset_name}*.tar.*z $ORG_PWD']
 
         script_name = f'GRIDPACK_{self.get_id()}.sh'
         script_path = os.path.join(self.local_dir(), script_name)
