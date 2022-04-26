@@ -1,7 +1,12 @@
+import os
 import json
 import logging
 import subprocess
+from os import listdir
+from os.path import isdir
+from os.path import join as path_join
 from connection_wrapper import ConnectionWrapper
+from config import Config
 
 
 CONDOR_STATUS = {'0': 'UNEXPLAINED',
@@ -14,6 +19,8 @@ CONDOR_STATUS = {'0': 'UNEXPLAINED',
 
 
 BRANCHES_CACHE = {}
+CAMPAIGNS_CACHE = {}
+CARDS_CACHE = {}
 
 
 def clean_split(string, separator=',', maxsplit=-1):
@@ -93,3 +100,40 @@ def get_git_branches(repository, cache=True):
         BRANCHES_CACHE[repository] = branches
 
     return BRANCHES_CACHE[repository]
+
+
+def get_available_campaigns(cache=True):
+    """
+    Get campaigns and campaign templates
+    """
+    global CAMPAIGNS_CACHE
+    if not cache or not CAMPAIGNS_CACHE:
+        CAMPAIGNS_CACHE = {}
+        campaigns_dir = os.path.join(Config.get('gridpack_files_path'), 'Campaigns')
+        campaigns = [c for c in listdir(campaigns_dir) if isdir(path_join(campaigns_dir, c))]
+        for name in campaigns:
+            campaign_path = os.path.join(campaigns_dir, name)
+            generators = [g for g in listdir(campaign_path) if isdir(path_join(campaign_path, g))]
+            CAMPAIGNS_CACHE[name] = generators
+
+    return CAMPAIGNS_CACHE
+
+
+def get_available_cards(cache=True):
+    """
+    Get generators, processes and datasets
+    """
+    global CARDS_CACHE
+    if not cache or not CARDS_CACHE:
+        CARDS_CACHE = {}
+        cards_dir = os.path.join(Config.get('gridpack_files_path'), 'Cards')
+        generators = [c for c in listdir(cards_dir) if isdir(path_join(cards_dir, c))]
+        for generator in generators:
+            generator_path = os.path.join(cards_dir, generator)
+            processes = [p for p in listdir(generator_path) if isdir(path_join(generator_path, p))]
+            for process in processes:
+                process_path = os.path.join(generator_path, process)
+                datasets = [d for d in listdir(process_path) if isdir(path_join(process_path, d))]
+                CARDS_CACHE.setdefault(generator, {})[process] = datasets
+
+    return CARDS_CACHE

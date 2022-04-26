@@ -2,13 +2,10 @@ import time
 import logging
 import os
 import zipfile
-from os import listdir
-from os.path import isdir
-from os.path import join as path_join
 from database import Database
 from gridpack import Gridpack
 from email_sender import EmailSender
-from utils import clean_split, get_git_branches, get_jobs_in_condor, run_command
+from utils import clean_split, get_available_campaigns, get_available_cards, get_git_branches, get_jobs_in_condor, run_command
 from ssh_executor import SSHExecutor
 from config import Config
 from threading import Lock
@@ -27,34 +24,6 @@ class Controller():
         self.repository_tick_pause = 60
         self.tick_lock = Lock()
 
-    def get_available_campaigns(self):
-        """
-        Get campaigns and campaign templates
-        """
-        tree = {}
-        campaigns_dir = os.path.join(Config.get('gridpack_files_path'), 'Campaigns')
-        campaigns = [c for c in listdir(campaigns_dir) if isdir(path_join(campaigns_dir, c))]
-        for name in campaigns:
-            campaign_path = os.path.join(campaigns_dir, name)
-            generators = [g for g in listdir(campaign_path) if isdir(path_join(campaign_path, g))]
-            tree[name] = generators
-
-        return tree
-
-    def get_available_cards(self):
-        tree = {}
-        cards_dir = os.path.join(Config.get('gridpack_files_path'), 'Cards')
-        generators = [c for c in listdir(cards_dir) if isdir(path_join(cards_dir, c))]
-        for generator in generators:
-            generator_path = os.path.join(cards_dir, generator)
-            processes = [p for p in listdir(generator_path) if isdir(path_join(generator_path, p))]
-            for process in processes:
-                process_path = os.path.join(generator_path, process)
-                datasets = [d for d in listdir(process_path) if isdir(path_join(process_path, d))]
-                tree.setdefault(generator, {})[process] = datasets
-
-        return tree
-
     def update_repository_tree(self):
         now = int(time.time())
         if now - self.repository_tick_pause < self.last_repository_tick:
@@ -66,8 +35,8 @@ class Controller():
         files_dir = Config.get('gridpack_files_path')
         run_command([f'cd {files_dir}',
                      'git pull'])
-        self.repository_tree = {'campaigns': self.get_available_campaigns(),
-                                'cards': self.get_available_cards(),
+        self.repository_tree = {'campaigns': get_available_campaigns(cache=False),
+                                'cards': get_available_cards(cache=False),
                                 'branches': branches}
         self.last_repository_tick = int(time.time())
 

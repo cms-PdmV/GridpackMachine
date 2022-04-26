@@ -6,7 +6,7 @@ import json
 import time
 from copy import deepcopy
 from config import Config
-from utils import get_git_branches
+from utils import get_available_campaigns, get_available_cards, get_git_branches
 from user import User
 
 
@@ -52,6 +52,24 @@ class Gridpack():
         events = self.data['events']
         if events <= 0:
             return f'Bad events "{events}"'
+
+        campaigns = get_available_campaigns()
+        campaign = self.data['campaign']
+        if campaign not in campaigns:
+            return f'Bad campaign "{campaign}"'
+
+        generator = self.data['generator']
+        if generator not in campaigns[campaign]:
+            return f'Bad generator "{generator}"'
+        
+        cards = get_available_cards()
+        process = self.data['process']
+        if process not in cards[generator]:
+            return f'Bad process "{process}"'
+
+        dataset = self.data['dataset']
+        if dataset not in cards[generator][process]:
+            return f'Bad dataset "{dataset}"'
 
         return None
 

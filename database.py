@@ -15,7 +15,7 @@ class Database:
     Database class represents MongoDB database
     It encapsulates underlying connection and exposes some convenience methods
     """
-    PAGE_SIZE = 10
+    PAGE_SIZE = 100
     DATABASE_HOST = 'localhost'
     DATABASE_PORT = 27017
     DATABASE_NAME = 'gridpacks'

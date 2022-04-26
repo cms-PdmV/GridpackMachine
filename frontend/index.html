@@ -5,6 +5,7 @@
   <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
   <script src="static/moment.min.js"></script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jquery-csv@1.0.21/src/jquery.csv.min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/css/bootstrap.min.css">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.1/dist/js/bootstrap.bundle.min.js"></script>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900">
@@ -25,6 +26,10 @@
       font-size: 0.9em;
       text-align: center;
       white-space: nowrap;
+    }
+    td.wrap {
+      white-space: normal;
+      word-break: break-all;
     }
     th {
       text-align: center;
@@ -61,6 +66,18 @@
     a {
       color: #005eb6;
     }
+    form.file-upload {
+      max-width: 400px;
+      margin: auto;
+      border: 2px gray dashed;
+      border-radius: 40px;
+      padding: 50px;
+      text-align: center;
+      cursor: pointer
+    }
+    form.file-upload.dragging-over {
+      background-color: #eaeaea;
+    }
   </style>
 </head>
 
@@ -85,6 +102,7 @@
 
     <div class="container mt-4" style="text-align: center;" v-if="user.authorized">
       <button type="button" class="btn btn-success btn-sm elevation-3 ml-1 mr-1" data-toggle="modal" data-target="#createGridpackModal">New gridpack</button>
+      <button type="button" class="btn btn-success btn-sm elevation-3 ml-1 mr-1" data-toggle="modal" data-target="#uploadCSVModal">Gridpacks from CSV</button>
       <button type="button" class="btn btn-info btn-sm elevation-3 ml-1 mr-1" @click="forceTick()">Machine tick</button>
       <button type="button" class="btn btn-info btn-sm elevation-3 ml-1 mr-1" @click="forceRepositoryTick()">Refresh repository</button>
       <div class="mt-2">
@@ -161,19 +179,19 @@
           <div class="modal-body">
             <ul v-if="systemInfo.options && systemInfo.options.campaigns">
               <li v-for="(_, campaign) in systemInfo.options.campaigns">
-                <span class="wizard-option" v-if="wizard.campaign != campaign" @click="selectCampaign(campaign)">{{campaign}}</span>
+                <span class="wizard-option" v-if="wizard.campaign != campaign" @click="wizardSelectCampaign(campaign)">{{campaign}}</span>
                 <b v-if="wizard.campaign == campaign">{{campaign}}</b>
                 <ul v-if="wizard.campaign == campaign">
                   <li v-for="generator in systemInfo.options.campaigns[wizard.campaign]" >
-                    <span class="wizard-option" v-if="wizard.generator != generator" @click="selectGenerator(generator)">{{generator}}</span>
+                    <span class="wizard-option" v-if="wizard.generator != generator" @click="wizardSelectGenerator(generator)">{{generator}}</span>
                     <b v-if="wizard.generator == generator">{{generator}}</b>
                     <ul v-if="wizard.generator == generator">
                       <li v-for="(_, process) in systemInfo.options.cards[wizard.generator]" >
-                        <span class="wizard-option" v-if="wizard.process != process" @click="selectProcess(process)">{{process}}</span>
+                        <span class="wizard-option" v-if="wizard.process != process" @click="wizardSelectProcess(process)">{{process}}</span>
                         <b v-if="wizard.process == process">{{process}}</b>
                         <ul v-if="wizard.process == process">
                           <li v-for="dataset in systemInfo.options.cards[wizard.generator][wizard.process]">
-                            <span class="wizard-option" v-if="wizard.dataset != dataset" @click="selectDataset(dataset)">{{dataset}}</span>
+                            <span class="wizard-option" v-if="wizard.dataset != dataset" @click="wizardSelectDataset(dataset)">{{dataset}}</span>
                             <b v-if="wizard.dataset == dataset">{{dataset}}</b>
                           </li>
                         </ul>
@@ -202,12 +220,85 @@
             <button type="button"
                     class="btn btn-sm btn-success"
                     :disabled="wizard.events <= 0 || !wizard.tune.length || wizard.beam <= 0 || !wizard.genproductions.length"
-                    @click="createGridpack()"
+                    @click="wizardCreateGridpack()"
                     data-dismiss="modal">Create gridpack</button>
             <button type="button"
                     class="btn btn-sm btn-secondary"
                     data-dismiss="modal"
-                    @click="selectCampaign(undefined)">Cancel</button>
+                    @click="wizardSelectCampaign(undefined)">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Upload CSV modal -->
+    <div class="modal fade" id="uploadCSVModal" data-backdrop="static" data-keyboard="false" tabindex="-1" aria-labelledby="uploadCSVModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="uploadCSVModalLabel">Upload CSV of gridpacks</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+              <span aria-hidden="true">&times;</span>
+            </button>
+          </div>
+          <div class="modal-body">
+            <form v-show="!csvDialog.objects.length"
+                  class="file-upload"
+                  enctype="multipart/form-data"
+                  accept=".csv"
+                  @click="fileUploadOpenDialog()"
+                  ref="file-upload-form">
+              <input style="display: none" type="file" ref="file-upload-input" />
+              <b>Click here</b> to choose a file <span v-if="csvDialog.dragDropSupported">or drag and drop it in dashed area</span>
+              <br>
+              <div style="line-height: 80%; margin-top: 8px;">
+                <small>Only CSV files are supported</small>
+              </div>
+            </form>
+            <table v-show="csvDialog.objects.length">
+              <tr>
+                <th>Campaign</th>
+                <th>Generator</th>
+                <th>Dataset</th>
+                <th>Beam energy</th>
+                <th>Tune</th>
+                <th>Events</th>
+                <th>GEN productions</th>
+              </tr>
+              <tr v-for="gridpack in csvDialog.objects">
+                <td>
+                  {{gridpack.campaign}}
+                </td>
+                <td>
+                  {{gridpack.generator}}
+                </td>
+                <td class="wrap">
+                  {{gridpack.dataset}}
+                </td>
+                <td>
+                  {{gridpack.beam}}
+                </td>
+                <td>
+                  {{gridpack.tune}}
+                </td>
+                <td>
+                  {{gridpack.events}}
+                </td>
+                <td>
+                  {{gridpack.genproductions}}
+                </td>
+              </tr>
+            </table>
+          </div>
+          <div class="modal-footer">
+            <button type="button"
+                    class="btn btn-sm btn-success"
+                    :disabled="!csvDialog.objects.length"
+                    @click="fileUploadCreateGridpacks()"
+                    data-dismiss="modal">Create gridpacks</button>
+            <button type="button"
+                    class="btn btn-sm btn-secondary"
+                    data-dismiss="modal"
+                    @click="fileUploadCloseDialog()">Cancel</button>
           </div>
         </div>
       </div>
@@ -231,6 +322,10 @@
           tune: '',
           beam: 0,
           genproductions: '',
+        },
+        csvDialog: {
+          dragDropSupported: false,
+          objects: [],
         }
       },
       created() {
@@ -238,6 +333,9 @@
         this.getSystemInfo();
         this.getGridpacks();
         setInterval(this.updateTickDisplay, 1000);
+      },
+      mounted() {
+        this.fileUploadPrepareForm();
       },
       methods: {
         getUserInfo: function() {
@@ -264,9 +362,6 @@
             component.gridpacks = data[0];
             for (let gridpack of component.gridpacks) {
               gridpack.eventsNice = gridpack.events.toLocaleString('en-US');
-              for (let entry of gridpack.history) {
-                entry.timeNice = moment(new Date(entry.time * 1000.0)).format('YYYY-MM-DD HH:mm');
-              }
               gridpack.newestHistory = gridpack.history.slice(-3);
               for (let entry of gridpack.newestHistory) {
                 entry.timeNiceShort = moment(new Date(entry.time * 1000.0)).format('MMM DD HH:mm');
@@ -277,7 +372,7 @@
         },
         forceTick: function() {
           const component = this;
-          $.get("api/tick", function (data) {
+          $.get('api/tick', function (data) {
             if (data.message != 'OK') {
               alert(data);
             } else {
@@ -290,7 +385,7 @@
         },
         forceRepositoryTick: function() {
           const component = this;
-          $.get("api/tick_repository", function (data) {
+          $.get('api/tick_repository', function (data) {
             if (data.message != 'OK') {
               alert(data);
             } else {
@@ -300,52 +395,19 @@
             }
           });
         },
-        selectCampaign: function(campaign) {
-          this.wizard.campaign = campaign;
-          this.selectGenerator(undefined);
-        },
-        selectGenerator: function(generator) {
-          this.wizard.generator = generator;
-          this.selectProcess(undefined);
-        },
-        selectProcess: function(process) {
-          this.wizard.process = process;
-          this.selectDataset(undefined);
-        },
-        selectDataset: function(dataset) {
-          this.wizard.dataset = dataset;
-          this.wizard.events = 0;
-          this.wizard.tune = '';
-          this.wizard.beam = 0;
-          this.wizard.genproductions = '';
-          let branches = this.systemInfo.options.branches;
-          if (branches.includes('master')) {
-            this.wizard.genproductions = 'master';
-          }
-        },
-        createGridpack: function() {
+        createGridpacks: function(gridpacks) {
           const component = this;
-          let wizard = this.wizard;
-          let gridpack = {'campaign': wizard.campaign,
-                          'generator': wizard.generator,
-                          'process': wizard.process,
-                          'dataset': wizard.dataset,
-                          'events': parseInt(wizard.events),
-                          'tune': wizard.tune,
-                          'beam': parseInt(wizard.beam),
-                          'genproductions': wizard.genproductions};
-            $.ajax({
-              url: 'api/create',
-              type: 'PUT',
-              data: JSON.stringify(gridpack),
-              contentType: 'application/json',
-              success: function(result) {
-                console.log(result);
-                component.getGridpacks();
-              }
-            }).fail(function(data) {
-              alert(data.responseJSON.message)
-            });
+          $.ajax({
+            url: 'api/create',
+            type: 'PUT',
+            data: JSON.stringify(gridpacks),
+            contentType: 'application/json',
+            success: function(result) {
+              component.getGridpacks();
+            }
+          }).fail(function(data) {
+            alert(data.responseJSON.message)
+          });
         },
         resetGridpack: function(gridpack) {
           if (window.confirm('Reset ' + gridpack._id + '?')) {
@@ -356,7 +418,6 @@
                 data: JSON.stringify(gridpack),
                 contentType: 'application/json',
                 success: function(result) {
-                  console.log(result);
                   component.getGridpacks();
                 }
             });
@@ -371,32 +432,157 @@
                 data: JSON.stringify(gridpack),
                 contentType: 'application/json',
                 success: function(result) {
-                  console.log(result);
                   component.getGridpacks();
                 }
             });
           }
         },
         secondsToDiff: function (s) {
-            var days = Math.floor(s / 86400)
-            var hours = Math.floor((s - (days * 86400)) / 3600)
-            var minutes = Math.floor((s - (days * 86400 + hours * 3600)) / 60)
-            var seconds = s - days * 86400 - hours * 3600 - minutes * 60;
-            var result = ''
-            if (days > 0) {
-              result += days + 'd '
+          var days = Math.floor(s / 86400)
+          var hours = Math.floor((s - (days * 86400)) / 3600)
+          var minutes = Math.floor((s - (days * 86400 + hours * 3600)) / 60)
+          var seconds = s - days * 86400 - hours * 3600 - minutes * 60;
+          var result = ''
+          if (days > 0) {
+            result += days + 'd '
+          }
+          if (hours > 0) {
+            result += hours + 'h '
+          }
+          if (minutes > 0) {
+            result += minutes + 'min '
+          }
+          if (days == 0 && hours == 0 && minutes < 5) {
+            result += seconds + 's'
+          }
+          return result
+        },
+        // Create new gridpack wizard
+        wizardSelectCampaign: function(campaign) {
+          this.wizard.campaign = campaign;
+          this.wizardSelectGenerator(undefined);
+        },
+        wizardSelectGenerator: function(generator) {
+          this.wizard.generator = generator;
+          this.wizardSelectProcess(undefined);
+        },
+        wizardSelectProcess: function(process) {
+          this.wizard.process = process;
+          this.wizardSelectDataset(undefined);
+        },
+        wizardSelectDataset: function(dataset) {
+          this.wizard.dataset = dataset;
+          this.wizard.events = 0;
+          this.wizard.tune = '';
+          this.wizard.beam = 0;
+          this.wizard.genproductions = '';
+          let branches = this.systemInfo.options.branches;
+          if (branches.includes('master')) {
+            this.wizard.genproductions = 'master';
+          }
+        },
+        wizardCreateGridpack: function() {
+          let wizard = this.wizard;
+          this.createGridpacks([{'campaign': wizard.campaign,
+                                 'generator': wizard.generator,
+                                 'process': wizard.process,
+                                 'dataset': wizard.dataset,
+                                 'events': parseInt(wizard.events),
+                                 'tune': wizard.tune,
+                                 'beam': parseInt(wizard.beam),
+                                 'genproductions': wizard.genproductions}]);
+        },
+        // Create new gridpacks csv
+        fileUploadOpenDialog: function() {
+          let formInput = this.$refs['file-upload-input'];
+          formInput.click()
+        },
+        fileUploadPrepareForm: function() {
+          let divElement = document.createElement('div');
+          this.csvDialog.dragDropSupported = (('draggable' in divElement) || ('ondragstart' in divElement && 'ondrop' in divElement)) && 'FormData' in window && 'FileReader' in window;
+          const component = this;
+          if (this.csvDialog.dragDropSupported) {
+            let form = this.$refs['file-upload-form'];
+            const stopPropagation = function(e) {
+              e.preventDefault();
+              e.stopPropagation();
             }
-            if (hours > 0) {
-              result += hours + 'h '
+            const draggingOver = function(e) {
+              stopPropagation(e);
+              form.classList.add('dragging-over');
             }
-            if (minutes > 0) {
-              result += minutes + 'min '
+            const notDragingOver = function(e) {
+              stopPropagation(e);
+              form.classList.remove('dragging-over');
             }
-            if (days == 0 && hours == 0 && minutes < 5) {
-              result += seconds + 's'
+            const drop = async function(e) {
+              notDragingOver(e);
+              component.fileUploadHandle(e.dataTransfer.files[0]);
+              e.dataTransfer.value = '';
             }
-            return result
-          },
+            form.ondrag = stopPropagation;
+            form.ondragstart = stopPropagation;
+            form.ondragenter = notDragingOver;
+            form.ondragover = draggingOver;
+            form.ondragend = notDragingOver;
+            form.ondragleave = notDragingOver;
+            form.ondrop = drop;
+          }
+          let formInput = this.$refs['file-upload-input'];
+          formInput.onchange = async function() {
+            component.fileUploadHandle(formInput.files[0]);
+            formInput.value = '';
+          }
+        },
+        fileUploadHandle: function(file) {
+          const component = this;
+          file.text().then(function(contents) {
+            const gridpacks = $.csv.toObjects(contents);
+            for (let gridpack of gridpacks) {
+              let campaign = gridpack.campaign;
+              if (!(campaign in component.systemInfo.options.campaigns)) {
+                alert(`Invalid campaign "${campaign}"`);
+                return;
+              }
+              let generator = gridpack.generator;
+              if (!(component.systemInfo.options.campaigns[campaign].includes(generator))) {
+                alert(`Invalid generator "${generator}"`);
+                return;
+              }
+              let process = gridpack.process;
+              if (!(process in component.systemInfo.options.cards[generator])) {
+                alert(`Invalid process "${process}"`);
+                return;
+              }
+              let dataset = gridpack.dataset;
+              if (!(component.systemInfo.options.cards[generator][process].includes(dataset))) {
+                alert(`Invalid dataset "${dataset}"`);
+                return;
+              }
+              let genproductions = gridpack.genproductions;
+              if (!(component.systemInfo.options.branches.includes(genproductions))) {
+                alert(`Invalid genproductions "${genproductions}"`);
+                return;
+              }
+              let tune = gridpack.tune;
+              if (!tune.length) {
+                alert(`Invalid tune "${tune}"`);
+                return;
+              }
+              gridpack.events = parseInt(gridpack.events);
+              gridpack.beam = parseInt(gridpack.beam);
+            }
+            component.csvDialog.objects = gridpacks;
+          });
+        },
+        fileUploadCloseDialog: function() {
+          this.csvDialog.objects = [];
+          $('#uploadCSVModal').modal('hide');
+        },
+        fileUploadCreateGridpacks: function() {
+          this.createGridpacks(this.csvDialog.objects);
+          this.fileUploadCloseDialog();
+        },
       }
     })
   </script>

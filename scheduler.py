@@ -27,3 +27,8 @@ class Scheduler():
         for e, t in self.threads:
             e.set()
             t.join()
+
+    def notify(self):
+        for e, _ in self.threads:
+            e.set()
+            e.clear()

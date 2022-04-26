@@ -88,21 +88,32 @@ def system_info():
 @app.route('/api/create', methods=['PUT'])
 def create_gridpack():
     """
-    API to create a gridpack
+    API to create a gridpack or list of gridpacks
     """
     if not is_user_authorized():
         return output_text({'message': 'Unauthorized'}, code=403)
 
     logging.info('DATA %s', request.data.decode('utf-8'))
-    gridpack_dict = json.loads(request.data.decode('utf-8'))
-    gridpack = Gridpack.make(gridpack_dict)
-    error = gridpack.validate()
-    if error:
-        return output_text({'message': error}, code=400)
+    gridpacks = json.loads(request.data.decode('utf-8'))
+    if not isinstance(gridpacks, list):
+        gridpacks = [gridpacks]
 
-    gridpack_id = controller.create(gridpack)
-    tick()
-    return output_text({'message': gridpack_id})
+    gridpack_ids = []
+    for gridpack_dict in gridpacks:
+        try:
+            gridpack = Gridpack.make(gridpack_dict)
+        except Exception as ex:
+            return output_text({'message': str(ex)}, code=400)
+
+        error = gridpack.validate()
+        if error:
+            return output_text({'message': error}, code=400)
+
+        gridpack_id = controller.create(gridpack)
+        gridpack_ids.append(gridpack_id)
+
+    scheduler.notify()
+    return output_text({'message': gridpack_ids})
 
 
 @app.route('/api/reset', methods=['POST'])
@@ -119,7 +130,7 @@ def reset_gridpack():
         return output_text({'message': 'No ID'})
 
     controller.reset(gridpack_id)
-    tick()
+    scheduler.notify()
     return output_text({'message': 'OK'})
 
 
@@ -137,7 +148,7 @@ def delete_gridpack():
         return output_text({'message': 'No ID'})
     
     controller.delete(gridpack_id)
-    tick()
+    scheduler.notify()
     return output_text({'message': 'OK'})
 
 
