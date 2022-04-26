@@ -220,12 +220,14 @@ class Gridpack():
                    f'mv input_files.tar.gz genproductions/bin/{generator}/',
                    f'cd genproductions/bin/{generator}',
                    'tar -xzf input_files.tar.gz',
+                   'echo "Input files:"',
+                   'ls -lha input_files/',
                    'echo "Running gridpack_generation.sh"',
                    # Set "pdmv" queue
                    f'./gridpack_generation.sh {dataset_name} input_files pdmv',
-                   'echo ".tar.gz and .tar.xz archives after gridpack_generation.sh:"',
-                   'ls -lha *.tar.*z',
-                   f'mv *{dataset_name}*.tar.*z $ORG_PWD']
+                   'echo ".t*z archives after gridpack_generation.sh:"',
+                   'ls -lha *.t*z',
+                   f'mv *{dataset_name}*.t*z $ORG_PWD']
 
         script_name = f'GRIDPACK_{self.get_id()}.sh'
         script_path = os.path.join(self.local_dir(), script_name)

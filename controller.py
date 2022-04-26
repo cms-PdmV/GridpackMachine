@@ -305,13 +305,13 @@ class Controller():
             ssh.download_file(f'{remote_directory}/error.log',
                               f'{local_directory}/error.log')
             # Get gridpack archive name
-            stdout, stderr, _ = ssh.execute_command([f'ls -1 {remote_directory}/*{dataset_name}*.tar.*z'])
+            stdout, stderr, _ = ssh.execute_command([f'ls -1 {remote_directory}/*{dataset_name}*.t*z'])
             self.logger.debug(stdout)
             self.logger.debug(stderr)
             stdout = clean_split(stdout, '\n')
             for line in stdout:
                 filename = clean_split(line, '/')[-1]
-                if dataset_name in filename and filename.endswith(('.tar.xz', '.tar.gz')):
+                if dataset_name in filename and filename.endswith(('.tar.xz', '.tar.gz', '.tgz')):
                     gridpack_archive = filename
                     break
 
