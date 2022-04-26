@@ -139,7 +139,7 @@
           <pre style="margin: 0">{{gridpack.condor_status}} ({{gridpack.condor_id}})</pre>
         </td>
         <td>
-          {{gridpack.archive}}
+          <a :href="'https://pdmv-gridpacks.web.cern.ch/?q=' + gridpack.archive" target="_blank">{{gridpack.archive}}</a>
         </td>
         <td>
           <ul style="text-align: left">
@@ -318,6 +318,10 @@
           this.wizard.tune = '';
           this.wizard.beam = 0;
           this.wizard.genproductions = '';
+          let branches = this.systemInfo.options.branches;
+          if (branches.includes('master')) {
+            this.wizard.genproductions = 'master';
+          }
         },
         createGridpack: function() {
           const component = this;
