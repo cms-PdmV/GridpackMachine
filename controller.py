@@ -345,7 +345,7 @@ class Controller():
         service_url = Config.get('service_url')
         body = 'Hello,\n\n'
         body += f'Gridpack {gridpack_name} ({gridpack_id}) job has finished running.\n'
-        body += f'Gridpack job: {service_url}?q={gridpack_id}\n'
+        body += f'Gridpack job: {service_url}?_id={gridpack_id}\n'
         if files:
             body += 'You can find job files as an attachment.\n'
 
@@ -367,7 +367,7 @@ class Controller():
         service_url = Config.get('service_url')
         body = 'Hello,\n\n'
         body += f'Gridpack {gridpack_name} ({gridpack_id}) job has failed.\n'
-        body += f'Gridpack job: {service_url}?q={gridpack_id}\n'
+        body += f'Gridpack job: {service_url}?_id={gridpack_id}\n'
         if files:
             body += 'You can find job files as an attachment.\n'
 

@@ -57,6 +57,12 @@
       padding-right: 4px;
       max-width: 120px;
     }
+    th input {
+      max-width: unset;
+      min-width: 100px;
+      width: 100%;
+      border: 1px solid rgba(0, 0, 0, 0.87);
+    }
     .sorted-by {
       background: #c8c8c8;
     }
@@ -105,16 +111,40 @@
     </div>
     <table>
       <tr>
-        <th>Campaign</th>
-        <th>Generator</th>
-        <th>Dataset</th>
+        <th>
+          <span class="sort" @click="onSort('campaign')">Campaign</span>
+          <br>
+          <input type="text" class="header-search" placeholder="Type to search..." v-model="search.campaign" @input="onSearch()">
+        </th>
+        <th>
+          <span class="sort" @click="onSort('generator')">Generator</span>
+          <br>
+          <input type="text" class="header-search" placeholder="Type to search..." v-model="search.generator" @input="onSearch()">
+        </th>
+        <th>
+          <span class="sort" @click="onSort('dataset')">Dataset</span>
+          <br>
+          <input type="text" class="header-search" placeholder="Type to search..." v-model="search.dataset" @input="onSearch()">
+        </th>
         <th>Actions</th>
-        <th>Beam energy</th>
-        <th>Tune</th>
-        <th>Events</th>
+        <th>
+          <span class="sort" @click="onSort('beam')">Beam energy</span>
+        </th>
+        <th>
+          <span class="sort" @click="onSort('tune')">Tune</span>
+          <br>
+          <input type="text" class="header-search" placeholder="Type to search..." v-model="search.tune" @input="onSearch()">
+        </th>
+        <th>
+          <span class="sort" @click="onSort('events')">Events</span>
+        </th>
         <th>GEN productions</th>
-        <th>Status</th>
-        <th>Job</th>
+        <th>
+          <span class="sort" @click="onSort('status')">Status</span>
+        </th>
+        <th>
+          <span class="sort" @click="onSort('condor_status')">Job</span>
+        </th>
         <th>Gridpack</th>
         <th>History</th>
       </tr>
@@ -257,11 +287,29 @@
       data: {
         user: {},
         systemInfo: {},
+        allGridpacks: [],
         gridpacks: [],
         totalGridpacks: 0,
         wizardObjects: [],
+        defaultSortOn: '_id',
+        sortOn: undefined,
+        sortOrder: 1,
+        search: {
+          _id: undefined,
+          campaign: undefined,
+          generator: undefined,
+          dataset: undefined,
+          tune: undefined,
+        },
       },
       created() {
+        let urlParams = Object.fromEntries(new URLSearchParams(window.location.search));
+        for (let key in this.search) {
+          this.search[key] = urlParams[key] ? urlParams[key] : '';
+        }
+        this.sortOn = urlParams.sort_on || this.defaultSortOn;
+        this.sortOrder = parseInt(urlParams.sort_order || 1);
+
         this.getUserInfo();
         this.getSystemInfo();
         this.getGridpacks();
@@ -294,8 +342,8 @@
         getGridpacks: function() {
           const component = this;
           $.get("api/get", function (data) {
-            component.gridpacks = data[0];
-            for (let gridpack of component.gridpacks) {
+            let gridpacks = data[0];
+            for (let gridpack of gridpacks) {
               gridpack.eventsNice = gridpack.events.toLocaleString('en-US');
               gridpack.beamNice = gridpack.beam.toLocaleString('en-US');
               gridpack.newestHistory = gridpack.history.slice(-3);
@@ -304,6 +352,8 @@
               }
             }
             component.totalGridpacks = data[1];
+            component.allGridpacks = gridpacks;
+            component.onSearch();
           });
         },
         forceTick: function() {
@@ -500,6 +550,99 @@
           if (index < this.wizardObjects.length - 1) {
             this.wizardObjects.splice(index + 1, 0, this.wizardObjects.splice(index, 1)[0]);
           }
+        },
+        // Search and sort
+        onSearch: function() {
+          this.gridpacks = this.applySort(this.applyFilters(this.allGridpacks));
+          this.updateQuery();
+        },
+        onSort: function(attribute) {
+          this.sortOrder = (attribute == this.sortOn) ? this.sortOrder * -1 : 1;
+          this.sortOn = attribute;
+          this.gridpacks = this.applySort(this.gridpacks);
+          this.updateQuery();
+        },
+        applyFilters: function(gridpacks) {
+          for (let attribute in this.search) {
+            let pattern = this.search[attribute];
+            if (!pattern) {
+              continue;
+            }
+            pattern = pattern.trim();
+            if (pattern.length && pattern != '-' && pattern != '!') {
+              let negate = false;
+              if (pattern[0] == '-' || pattern[0] == '!') {
+                negate = true;
+                pattern = pattern.substring(1);
+              }
+              pattern = pattern.replaceAll('.*', '*').replaceAll(' ', '*').replaceAll('*', '.*').replaceAll(',', '|');
+              const regex = RegExp(pattern, 'i'); // 'i' for case insensitivity
+              const filterFunc = function(entry) {
+                const value = entry[attribute];
+                if (value == undefined || value == '') {
+                  // If negating, empty value should be shown
+                  return negate;
+                }
+                return regex.test(value) ^ negate;
+              }
+              gridpacks = gridpacks.filter(filterFunc);
+            }
+          }
+          return gridpacks;
+        },
+        sortComparator: function(a, b) {
+          const statusOrder = ["new", "submitted", "done", "failed"];
+          const condorStatusOrder = ["", "UNEXPLAINED", "IDLE", "RUN", "REMOVED", "DONE", "HOLD", "SUBMISSION ERROR"];
+
+          if (a[this.sortOn] === null && b[this.sortOn] === null) {
+            return 0;
+          }
+          // nulls go at the end
+          if (a[this.sortOn] === null) {
+            return 1; //this.sortOrder;
+          }
+          if (b[this.sortOn] === null) {
+            return -1; //-this.sortOrder;
+          }
+          if (this.sortOn == "status") {
+            return (statusOrder.indexOf(a[this.sortOn]) - statusOrder.indexOf(b[this.sortOn])) * this.sortOrder;
+          }
+          if (this.sortOn == "condor_status") {
+            return (condorStatusOrder.indexOf(a[this.sortOn]) - condorStatusOrder.indexOf(b[this.sortOn])) * this.sortOrder;
+          }
+          // Compare normal values
+          if (a[this.sortOn] < b[this.sortOn]) {
+            return -this.sortOrder;
+          }
+          if (a[this.sortOn] > b[this.sortOn]) {
+            return this.sortOrder;
+          }
+          // Sort descending by _id
+          return a[this.defaultSortOn] < b[this.defaultSortOn] ? this.sortOrder : -this.sortOrder;
+        },
+        applySort: function(rows) {
+          return rows.sort(this.sortComparator);
+        },
+        updateQuery: function() {
+          let urlParams = Object.fromEntries(new URLSearchParams(window.location.search));
+          urlParams['sort_order'] = this.sortOrder != 1 ? this.sortOrder : undefined;
+          urlParams['sort_on'] = this.sortOn != this.defaultSortOn ? this.sortOn : undefined;
+          for (let attribute in this.search) {
+            let pattern = this.search[attribute];
+            if (pattern == '-' || pattern == '!') {
+              pattern = undefined;
+            }
+            urlParams[attribute] = pattern ? pattern.trim() : undefined;
+          }
+          // Delete all undefined
+          Object.keys(urlParams).forEach(key => urlParams[key] === undefined && delete urlParams[key]);
+          let urlQuery = new URLSearchParams(urlParams).toString();
+          if (urlQuery) {
+            urlQuery = '?' + urlQuery;
+            urlQuery = decodeURI(urlQuery);
+          }
+          let newUrl = window.location.protocol + '//' + window.location.host + window.location.pathname + urlQuery;
+          window.history.replaceState({path: newUrl}, '', newUrl);
         },
       }
     })

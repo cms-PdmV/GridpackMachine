@@ -15,7 +15,6 @@ class Database:
     Database class represents MongoDB database
     It encapsulates underlying connection and exposes some convenience methods
     """
-    PAGE_SIZE = 100
     DATABASE_HOST = 'localhost'
     DATABASE_PORT = 27017
     DATABASE_NAME = 'gridpacks'
@@ -104,17 +103,16 @@ class Database:
         """
         return self.gridpacks.find_one({'_id': gridpack_id})
 
-    def get_gridpacks(self, query_dict=None, page=0, page_size=PAGE_SIZE):
+    def get_gridpacks(self, query_dict=None):
         """
         Search for gridpacks in the database
-        Return list of paginated gridpacks and total number of search results
+        Return list of gridpacks and total number of search results
         """
         if query_dict is None:
             query_dict = {}
 
         gridpacks = self.gridpacks.find(query_dict).sort('_id', -1)
         total_rows = gridpacks.count()
-        gridpacks = gridpacks.skip(page * page_size).limit(page_size)
         return list(gridpacks), total_rows
 
     def get_gridpacks_with_status(self, status):
