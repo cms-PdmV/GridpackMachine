@@ -146,7 +146,9 @@
           <span class="sort" @click="onSort('condor_status')">Job</span>
         </th>
         <th>Gridpack</th>
-        <th>History</th>
+        <th>
+          <span class="sort" @click="onSort('last_update')">History</span>
+        </th>
       </tr>
       <tr v-for="gridpack in gridpacks" :key="gridpack._id">
         <td>
@@ -610,12 +612,14 @@
           if (this.sortOn == "condor_status") {
             return (condorStatusOrder.indexOf(a[this.sortOn]) - condorStatusOrder.indexOf(b[this.sortOn])) * this.sortOrder;
           }
-          // Compare normal values
-          if (a[this.sortOn] < b[this.sortOn]) {
-            return -this.sortOrder;
-          }
-          if (a[this.sortOn] > b[this.sortOn]) {
-            return this.sortOrder;
+          if (this.sortOn != "_id") {
+            // Compare normal values
+            if (a[this.sortOn] < b[this.sortOn]) {
+              return -this.sortOrder;
+            }
+            if (a[this.sortOn] > b[this.sortOn]) {
+              return this.sortOrder;
+            }
           }
           // Sort descending by _id
           return a[this.defaultSortOn] < b[this.defaultSortOn] ? this.sortOrder : -this.sortOrder;
