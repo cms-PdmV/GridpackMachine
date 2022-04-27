@@ -15,9 +15,10 @@
     body {
       background: #fafafa;
     }
-    .wizard-option {
-      cursor: pointer;
-      text-decoration: underline;
+    select {
+      width: 100%;
+      border-color: lightgray;
+      background-color: white;
     }
     td, th {
       border: 1px #aaa solid;
@@ -41,7 +42,7 @@
     table {
       margin-left: auto;
       margin-right: auto;
-      margin-bottom: 40px;
+      margin-bottom: 10px;
       margin-top: 20px;
       border-collapse: collapse;
     }
@@ -49,21 +50,28 @@
       cursor: pointer;
     }
     input {
-      width: 98%;
       margin: auto;
       margin-bottom: 2px;
-      border: 1px solid black;
+      border: 1px solid lightgray;
       padding-left: 4px;
       padding-right: 4px;
-    }
-    select {
-      width: 98%;
+      max-width: 120px;
     }
     .sorted-by {
       background: #c8c8c8;
     }
     a {
       color: #005eb6;
+    }
+    .wizard {
+      opacity: 0;
+      width: 24px;
+      height: 24px;
+      vertical-align: baseline;
+      transition: all 1s ease-in-out;
+    }
+    .wizard:hover {
+      opacity: 1;
     }
   </style>
 </head>
@@ -88,7 +96,7 @@
     </div>
 
     <div class="container mt-4" style="text-align: center;" v-if="user.authorized">
-      <button type="button" class="btn btn-success btn-sm elevation-3 ml-1 mr-1" data-toggle="modal" data-target="#createGridpackModal">New gridpack wizard</button>
+      <button type="button" class="btn btn-success btn-sm elevation-3 ml-1 mr-1" data-toggle="modal" data-target="#createGridpackModal">Create gridpacks</button>
       <button type="button" class="btn btn-info btn-sm elevation-3 ml-1 mr-1" @click="forceTick()">Machine tick</button>
       <button type="button" class="btn btn-info btn-sm elevation-3 ml-1 mr-1" @click="forceRepositoryTick()">Refresh repository</button>
       <div class="mt-2">
@@ -154,64 +162,89 @@
     </table>
     <!-- Create new gridpack modal -->
     <div class="modal fade" id="createGridpackModal" data-backdrop="static" data-keyboard="false" tabindex="-1" aria-labelledby="createGridpackModalLabel" aria-hidden="true">
-      <div class="modal-dialog">
+      <div class="modal-dialog" style="width: fit-content; max-width: 100%;">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title" id="createGridpackModalLabel">New gridpack wizard</h5>
+            <audio id="abracadabra" src="static/abracadabra.mp3" preload="auto"></audio>
+            <h5 class="modal-title" id="createGridpackModalLabel">
+              New gridpack wizard <img class="wizard" id="wizard" src="static/wizard.png"/>
+            </h5>
             <button type="button" class="close" data-dismiss="modal" aria-label="Close">
               <span aria-hidden="true">&times;</span>
             </button>
           </div>
           <div class="modal-body">
-            <ul v-if="systemInfo.options && systemInfo.options.campaigns">
-              <li v-for="(_, campaign) in systemInfo.options.campaigns">
-                <span class="wizard-option" v-if="wizard.campaign != campaign" @click="wizardSelectCampaign(campaign)">{{campaign}}</span>
-                <b v-if="wizard.campaign == campaign">{{campaign}}</b>
-                <ul v-if="wizard.campaign == campaign">
-                  <li v-for="generator in systemInfo.options.campaigns[wizard.campaign]" >
-                    <span class="wizard-option" v-if="wizard.generator != generator" @click="wizardSelectGenerator(generator)">{{generator}}</span>
-                    <b v-if="wizard.generator == generator">{{generator}}</b>
-                    <ul v-if="wizard.generator == generator">
-                      <li v-for="(_, process) in systemInfo.options.cards[wizard.generator]" >
-                        <span class="wizard-option" v-if="wizard.process != process" @click="wizardSelectProcess(process)">{{process}}</span>
-                        <b v-if="wizard.process == process">{{process}}</b>
-                        <ul v-if="wizard.process == process">
-                          <li v-for="dataset in systemInfo.options.cards[wizard.generator][wizard.process]">
-                            <span class="wizard-option" v-if="wizard.dataset != dataset" @click="wizardSelectDataset(dataset)">{{dataset}}</span>
-                            <b v-if="wizard.dataset == dataset">{{dataset}}</b>
-                          </li>
-                        </ul>
-                      </li>
-                    </ul>
-                  </li>
-                </ul>
-              </li>
-            </ul>
-            <table v-if="wizard.dataset">
-              <tr><td>Events</td><td><input type="number" v-model="wizard.events"></td></tr>
-              <tr><td>Tune</td><td><input type="text" v-model="wizard.tune"></td></tr>
-              <tr><td>Beam evergy</td><td><input type="number" v-model="wizard.beam"></td></tr>
+            <table>
               <tr>
-                <td>GENproductions</td>
+                <th>#</th>
+                <th>Campaign</th>
+                <th>Generator</th>
+                <th>Process</th>
+                <th>Dataset</th>
+                <th>Beam energy</th>
+                <th>Tune</th>
+                <th>Events</th>
+                <th>GEN productions</th>
+                <th>Actions</th>
+              </tr>
+              <tr v-for="(wizardObject, index) in wizardObjects">
                 <td>
-                  <select v-model="wizard.genproductions">
-                    <option disabled value="">Please select one</option>
+                  {{index + 1}}.
+                </td>
+                <td>
+                  <select v-model="wizardObject.campaign" @change="wizardSelectCampaign(wizardObject, wizardObject.campaign)">
+                    <option v-for="(_, campaign) in systemInfo.options.campaigns" :key="campaign">{{campaign}}</option>
+                  </select>
+                </td>
+                <td>
+                  <select v-if="wizardObject.campaign" v-model="wizardObject.generator" @change="wizardSelectGenerator(wizardObject, wizardObject.generator)">
+                    <option v-for="generator in systemInfo.options.campaigns[wizardObject.campaign]" :key="generator">{{generator}}</option>
+                  </select>
+                </td>
+                <td>
+                  <select v-if="wizardObject.generator" v-model="wizardObject.process" @change="wizardSelectProcess(wizardObject, wizardObject.process)">
+                    <option v-for="(_, process) in systemInfo.options.cards[wizardObject.generator]" :key="process">{{process}}</option>
+                  </select>
+                </td>
+                <td>
+                  <select v-if="wizardObject.process" v-model="wizardObject.dataset" @change="wizardSelectDataset(wizardObject, wizardObject.dataset)">
+                    <option v-for="dataset in systemInfo.options.cards[wizardObject.generator][wizardObject.process]" :key="dataset">{{dataset}}</option>
+                  </select>
+                </td>
+                <td>
+                  <input type="number" min="0" v-model="wizardObject.beam">
+                </td>
+                <td>
+                  <input type="text" v-model="wizardObject.tune">
+                </td>
+                <td>
+                  <input type="number" min="0" v-model="wizardObject.events">
+                </td>
+                <td>
+                  <select v-model="wizardObject.genproductions">
                     <option v-for="branch in systemInfo.options.branches" :key="branch">{{branch}}</option>
                   </select>
                 </td>
+                <td style="text-align: left;">
+                  <span style="cursor: pointer;" title="Delete row" @click="wizardDeleteRow(wizardObject)">&#10007;</span>
+                  <span style="cursor: pointer;" title="Clone row" @click="wizardCloneRow(wizardObject)">&#10697;</span>
+                  <span style="cursor: pointer;" v-if="index != 0" title="Move up" @click="wizardMoveRowUp(wizardObject)">&#9650;</span>
+                  <span style="cursor: pointer;" v-if="index != wizardObjects.length - 1" title="Move down" @click="wizardMoveRowDown(wizardObject)">&#9660;</span>
+                </td>
               </tr>
             </table>
+
+            <span style="cursor: pointer; margin-left: 4px;" title="Add row" @click="wizardAddRow()">+</span>
           </div>
           <div class="modal-footer">
             <button type="button"
                     class="btn btn-sm btn-success"
-                    :disabled="wizard.events <= 0 || !wizard.tune.length || wizard.beam <= 0 || !wizard.genproductions.length"
-                    @click="wizardCreateGridpack()"
-                    data-dismiss="modal">Create gridpack</button>
+                    :disabled="!wizardObjects.length"
+                    @click="wizardCreateGridpacks()">Create {{wizardObjects.length > 1 ? (wizardObjects.length + ' gridpacks') : 'gridpack'}}</button>
             <button type="button"
                     class="btn btn-sm btn-secondary"
                     data-dismiss="modal"
-                    @click="wizardSelectCampaign(undefined)">Cancel</button>
+                    @click="wizardCancel()">Cancel</button>
           </div>
         </div>
       </div>
@@ -226,22 +259,18 @@
         systemInfo: {},
         gridpacks: [],
         totalGridpacks: 0,
-        wizard: {
-          campaign: undefined,
-          generator: undefined,
-          process: undefined,
-          dataset: undefined,
-          events: 0,
-          tune: '',
-          beam: 0,
-          genproductions: '',
-        }
+        wizardObjects: [],
       },
       created() {
         this.getUserInfo();
         this.getSystemInfo();
         this.getGridpacks();
         setInterval(this.updateTickDisplay, 1000);
+      },
+      mounted() {
+        var wizard = document.getElementById('wizard');
+        var abracadabra = document.getElementById('abracadabra');
+        wizard.addEventListener('mouseover', function() { abracadabra.play();});
       },
       methods: {
         getUserInfo: function() {
@@ -365,39 +394,112 @@
           return result
         },
         // Create new gridpack wizard
-        wizardSelectCampaign: function(campaign) {
-          this.wizard.campaign = campaign;
-          this.wizardSelectGenerator(undefined);
+        wizardSelectCampaign: function(wizObject, campaign) {
+          wizObject.campaign = campaign;
+          this.wizardSelectGenerator(wizObject, undefined);
         },
-        wizardSelectGenerator: function(generator) {
-          this.wizard.generator = generator;
-          this.wizardSelectProcess(undefined);
+        wizardSelectGenerator: function(wizObject, generator) {
+          wizObject.generator = generator;
+          this.wizardSelectProcess(wizObject, undefined);
         },
-        wizardSelectProcess: function(process) {
-          this.wizard.process = process;
-          this.wizardSelectDataset(undefined);
+        wizardSelectProcess: function(wizObject, process) {
+          wizObject.process = process;
+          this.wizardSelectDataset(wizObject, undefined);
         },
-        wizardSelectDataset: function(dataset) {
-          this.wizard.dataset = dataset;
-          this.wizard.events = 0;
-          this.wizard.tune = '';
-          this.wizard.beam = 0;
-          this.wizard.genproductions = '';
-          let branches = this.systemInfo.options.branches;
-          if (branches.includes('master')) {
-            this.wizard.genproductions = 'master';
+        wizardSelectDataset: function(wizObject, dataset) {
+          wizObject.dataset = dataset;
+        },
+        wizardCancel: function() {
+          this.wizardObjects = [];
+        },
+        wizardAddRow: function() {
+          let newRow = {
+            campaign: undefined,
+            generator: undefined,
+            process: undefined,
+            dataset: undefined,
+            events: 0,
+            tune: undefined,
+            beam: 0,
+            genproductions: undefined,
+          };
+          if (this.systemInfo.options.branches.includes('master')) {
+            newRow.genproductions = 'master';
+          }
+          this.wizardObjects.push(newRow);
+        },
+        wizardCreateGridpacks: function() {
+          let index = 1;
+          for (let gridpack of this.wizardObjects) {
+            if (gridpack.campaign == undefined) {
+              alert('Please select a campaign in row ' + index);
+              return;
+            }
+            if (gridpack.generator == undefined) {
+              alert('Please select a generator in row ' + index);
+              return;
+            }
+            if (gridpack.process == undefined) {
+              alert('Please select a process in row ' + index);
+              return;
+            }
+            if (gridpack.dataset == undefined) {
+              alert('Please select a dataset in row ' + index);
+              return;
+            }
+            if (gridpack.genproductions == undefined) {
+              alert('Please select a genproductions branch in row ' + index);
+              return;
+            }
+            gridpack.events = parseInt(gridpack.events);
+            if (gridpack.events <= 0) {
+              alert('Please enter a positive number of events in row ' + index);
+              return;
+            }
+            gridpack.beam = parseInt(gridpack.beam);
+            if (gridpack.beam <= 0) {
+              alert('Please enter a positive beam energy in row ' + index);
+              return;
+            }
+            gridpack.tune = gridpack.tune.trim();
+            if (gridpack.tune == '') {
+              alert('Please enter a tune in row ' + index);
+              return;
+            }
+            index++;
+          }
+          this.createGridpacks(this.wizardObjects);
+          $('#createGridpackModal').modal('hide');
+          this.wizardObjects = [];
+        },
+        wizardDeleteRow: function(wizardObject) {
+          let index = this.wizardObjects.indexOf(wizardObject);
+          this.wizardObjects.splice(index, 1);
+        },
+        wizardCloneRow: function(wizardObject) {
+          let index = this.wizardObjects.indexOf(wizardObject);
+          this.wizardObjects.splice(index + 1, 0, {
+            campaign: wizardObject.campaign,
+            generator: wizardObject.generator,
+            process: wizardObject.process,
+            dataset: wizardObject.dataset,
+            events: wizardObject.events,
+            tune: wizardObject.tune,
+            beam: wizardObject.beam,
+            genproductions: wizardObject.genproductions,
+          });
+        },
+        wizardMoveRowUp: function(wizardObject) {
+          let index = this.wizardObjects.indexOf(wizardObject);
+          if (index > 0) {
+            this.wizardObjects.splice(index - 1, 0, this.wizardObjects.splice(index, 1)[0]);
           }
         },
-        wizardCreateGridpack: function() {
-          let wizard = this.wizard;
-          this.createGridpacks([{'campaign': wizard.campaign,
-                                 'generator': wizard.generator,
-                                 'process': wizard.process,
-                                 'dataset': wizard.dataset,
-                                 'events': parseInt(wizard.events),
-                                 'tune': wizard.tune,
-                                 'beam': parseInt(wizard.beam),
-                                 'genproductions': wizard.genproductions}]);
+        wizardMoveRowDown: function(wizardObject) {
+          let index = this.wizardObjects.indexOf(wizardObject);
+          if (index < this.wizardObjects.length - 1) {
+            this.wizardObjects.splice(index + 1, 0, this.wizardObjects.splice(index, 1)[0]);
+          }
         },
       }
     })
