@@ -66,18 +66,6 @@
     a {
       color: #005eb6;
     }
-    form.file-upload {
-      max-width: 400px;
-      margin: auto;
-      border: 2px gray dashed;
-      border-radius: 40px;
-      padding: 50px;
-      text-align: center;
-      cursor: pointer
-    }
-    form.file-upload.dragging-over {
-      background-color: #eaeaea;
-    }
   </style>
 </head>
 
@@ -102,7 +90,6 @@
 
     <div class="container mt-4" style="text-align: center;" v-if="user.authorized">
       <button type="button" class="btn btn-success btn-sm elevation-3 ml-1 mr-1" data-toggle="modal" data-target="#createGridpackModal">New gridpack wizard</button>
-      <button type="button" class="btn btn-success btn-sm elevation-3 ml-1 mr-1" data-toggle="modal" data-target="#uploadCSVModal">Gridpacks from CSV</button>
       <button type="button" class="btn btn-info btn-sm elevation-3 ml-1 mr-1" @click="forceTick()">Machine tick</button>
       <button type="button" class="btn btn-info btn-sm elevation-3 ml-1 mr-1" @click="forceRepositoryTick()">Refresh repository</button>
       <div class="mt-2">
@@ -132,14 +119,14 @@
           {{gridpack.generator}}
         </td>
         <td>
-          {{gridpack.dataset}}
+          <small>{{gridpack.process}}/</small>{{gridpack.dataset}}
         </td>
         <td>
           <span style="cursor: pointer;" title="Delete gridpack job" @click="deleteGridpack(gridpack)">&#10007;</span>
           <span style="cursor: pointer;" title="Reset job" @click="resetGridpack(gridpack)">&#8634;</span>
         </td>
         <td>
-          {{gridpack.beam}}
+          {{gridpack.beamNice}}
         </td>
         <td>
           {{gridpack.tune}}
@@ -157,11 +144,11 @@
           <pre style="margin: 0">{{gridpack.condor_status}} ({{gridpack.condor_id}})</pre>
         </td>
         <td>
-          <a :href="'https://pdmv-gridpacks.web.cern.ch/?q=' + gridpack.archive" target="_blank">{{gridpack.archive}}</a>
+          <a :href="'https://pdmv-gridpacks.web.cern.ch/?q=' + gridpack.archive" target="_blank" style="letter-spacing: -0.4px">{{gridpack.archive}}</a>
         </td>
         <td>
           <ul style="text-align: left">
-            <li v-for="entry in gridpack.newestHistory">{{entry.timeNiceShort}} {{entry.action}} <small>({{entry.user}})</small></li>
+            <li v-for="entry in gridpack.newestHistory"><small>{{entry.timeNiceShort}}</small> {{entry.action}} <small>({{entry.user}})</small></li>
           </ul>
         </td>
       </tr>
@@ -230,79 +217,6 @@
         </div>
       </div>
     </div>
-    <!-- Upload CSV modal -->
-    <div class="modal fade" id="uploadCSVModal" data-backdrop="static" data-keyboard="false" tabindex="-1" aria-labelledby="uploadCSVModalLabel" aria-hidden="true">
-      <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="uploadCSVModalLabel">Upload CSV of gridpacks</h5>
-            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-              <span aria-hidden="true">&times;</span>
-            </button>
-          </div>
-          <div class="modal-body">
-            <form v-show="!csvDialog.objects.length"
-                  class="file-upload"
-                  enctype="multipart/form-data"
-                  accept=".csv"
-                  @click="fileUploadOpenDialog()"
-                  ref="file-upload-form">
-              <input style="display: none" type="file" ref="file-upload-input" />
-              <b>Click here</b> to choose a file <span v-if="csvDialog.dragDropSupported">or drag and drop it in dashed area</span>
-              <br>
-              <div style="line-height: 80%; margin-top: 8px;">
-                <small>Only CSV files are supported</small>
-              </div>
-            </form>
-            <table v-show="csvDialog.objects.length">
-              <tr>
-                <th>Campaign</th>
-                <th>Generator</th>
-                <th>Dataset</th>
-                <th>Beam energy</th>
-                <th>Tune</th>
-                <th>Events</th>
-                <th>GEN productions</th>
-              </tr>
-              <tr v-for="gridpack in csvDialog.objects">
-                <td>
-                  {{gridpack.campaign}}
-                </td>
-                <td>
-                  {{gridpack.generator}}
-                </td>
-                <td class="wrap">
-                  {{gridpack.dataset}}
-                </td>
-                <td>
-                  {{gridpack.beam}}
-                </td>
-                <td>
-                  {{gridpack.tune}}
-                </td>
-                <td>
-                  {{gridpack.events}}
-                </td>
-                <td>
-                  {{gridpack.genproductions}}
-                </td>
-              </tr>
-            </table>
-          </div>
-          <div class="modal-footer">
-            <button type="button"
-                    class="btn btn-sm btn-success"
-                    :disabled="!csvDialog.objects.length"
-                    @click="fileUploadCreateGridpacks()"
-                    data-dismiss="modal">Create gridpacks</button>
-            <button type="button"
-                    class="btn btn-sm btn-secondary"
-                    data-dismiss="modal"
-                    @click="fileUploadCloseDialog()">Cancel</button>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 
   <script>
@@ -334,9 +248,6 @@
         this.getGridpacks();
         setInterval(this.updateTickDisplay, 1000);
       },
-      mounted() {
-        this.fileUploadPrepareForm();
-      },
       methods: {
         getUserInfo: function() {
           const component = this;
@@ -362,6 +273,7 @@
             component.gridpacks = data[0];
             for (let gridpack of component.gridpacks) {
               gridpack.eventsNice = gridpack.events.toLocaleString('en-US');
+              gridpack.beamNice = gridpack.beam.toLocaleString('en-US');
               gridpack.newestHistory = gridpack.history.slice(-3);
               for (let entry of gridpack.newestHistory) {
                 entry.timeNiceShort = moment(new Date(entry.time * 1000.0)).format('MMM DD HH:mm');
@@ -491,97 +403,6 @@
                                  'tune': wizard.tune,
                                  'beam': parseInt(wizard.beam),
                                  'genproductions': wizard.genproductions}]);
-        },
-        // Create new gridpacks csv
-        fileUploadOpenDialog: function() {
-          let formInput = this.$refs['file-upload-input'];
-          formInput.click()
-        },
-        fileUploadPrepareForm: function() {
-          let divElement = document.createElement('div');
-          this.csvDialog.dragDropSupported = (('draggable' in divElement) || ('ondragstart' in divElement && 'ondrop' in divElement)) && 'FormData' in window && 'FileReader' in window;
-          const component = this;
-          if (this.csvDialog.dragDropSupported) {
-            let form = this.$refs['file-upload-form'];
-            const stopPropagation = function(e) {
-              e.preventDefault();
-              e.stopPropagation();
-            }
-            const draggingOver = function(e) {
-              stopPropagation(e);
-              form.classList.add('dragging-over');
-            }
-            const notDragingOver = function(e) {
-              stopPropagation(e);
-              form.classList.remove('dragging-over');
-            }
-            const drop = async function(e) {
-              notDragingOver(e);
-              component.fileUploadHandle(e.dataTransfer.files[0]);
-              e.dataTransfer.value = '';
-            }
-            form.ondrag = stopPropagation;
-            form.ondragstart = stopPropagation;
-            form.ondragenter = notDragingOver;
-            form.ondragover = draggingOver;
-            form.ondragend = notDragingOver;
-            form.ondragleave = notDragingOver;
-            form.ondrop = drop;
-          }
-          let formInput = this.$refs['file-upload-input'];
-          formInput.onchange = async function() {
-            component.fileUploadHandle(formInput.files[0]);
-            formInput.value = '';
-          }
-        },
-        fileUploadHandle: function(file) {
-          const component = this;
-          file.text().then(function(contents) {
-            const gridpacks = $.csv.toObjects(contents);
-            for (let gridpack of gridpacks) {
-              let campaign = gridpack.campaign;
-              if (!(campaign in component.systemInfo.options.campaigns)) {
-                alert(`Invalid campaign "${campaign}"`);
-                return;
-              }
-              let generator = gridpack.generator;
-              if (!(component.systemInfo.options.campaigns[campaign].includes(generator))) {
-                alert(`Invalid generator "${generator}"`);
-                return;
-              }
-              let process = gridpack.process;
-              if (!(process in component.systemInfo.options.cards[generator])) {
-                alert(`Invalid process "${process}"`);
-                return;
-              }
-              let dataset = gridpack.dataset;
-              if (!(component.systemInfo.options.cards[generator][process].includes(dataset))) {
-                alert(`Invalid dataset "${dataset}"`);
-                return;
-              }
-              let genproductions = gridpack.genproductions;
-              if (!(component.systemInfo.options.branches.includes(genproductions))) {
-                alert(`Invalid genproductions "${genproductions}"`);
-                return;
-              }
-              let tune = gridpack.tune;
-              if (!tune.length) {
-                alert(`Invalid tune "${tune}"`);
-                return;
-              }
-              gridpack.events = parseInt(gridpack.events);
-              gridpack.beam = parseInt(gridpack.beam);
-            }
-            component.csvDialog.objects = gridpacks;
-          });
-        },
-        fileUploadCloseDialog: function() {
-          this.csvDialog.objects = [];
-          $('#uploadCSVModal').modal('hide');
-        },
-        fileUploadCreateGridpacks: function() {
-          this.createGridpacks(this.csvDialog.objects);
-          this.fileUploadCloseDialog();
         },
       }
     })
