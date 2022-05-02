@@ -217,6 +217,25 @@ class Controller():
                 gridpack.set_condor_status('IDLE')
                 self.logger.info('Submitted %s. Condor job id %s', gridpack, condor_id)
                 gridpack.add_history_entry('submitted')
+                # Send an email about submitted gridpack
+                input_files = []
+                # Attach the script file for debugging
+                if os.path.isfile(f'{local_directory}/GRIDPACK_{gridpack_id}.sh'):
+                    input_files.append(f'{local_directory}/GRIDPACK_{gridpack_id}.sh')
+
+                # Attach the cards archive for debugging
+                if os.path.isfile(f'{local_directory}/input_files.tar.gz'):
+                    input_files.append(f'{local_directory}/input_files.tar.gz')
+
+                attachments = []
+                if input_files:
+                    zip_file_name = f'{local_directory}/gridpack_{gridpack_id}_input_files.zip'
+                    attachments.append(zip_file_name)
+                    with zipfile.ZipFile(zip_file_name, 'w', zipfile.ZIP_DEFLATED) as zip_object:
+                        for file_path in input_files:
+                            zip_object.write(file_path, file_path.split('/')[-1])
+
+                self.send_submitted_notification(gridpack, attachments)
             else:
                 self.logger.error('Error submitting %s.\nOutput: %s.\nError %s',
                                   gridpack,
@@ -331,6 +350,28 @@ class Controller():
 
         gridpack.rmdir()
         self.database.update_gridpack(gridpack)
+
+    def send_submitted_notification(self, gridpack, files=None):
+        """
+        Send email notification that gridpack was submitted
+        """
+        gridpack_dict = gridpack.get_json()
+        campaign = gridpack_dict.get('campaign')
+        generator = gridpack_dict.get('generator')
+        dataset = gridpack_dict.get('dataset')
+        gridpack_id = gridpack.get_id()
+        gridpack_name = f'{campaign} {dataset} {generator}'
+        service_url = Config.get('service_url')
+        body = 'Hello,\n\n'
+        body += f'Gridpack {gridpack_name} ({gridpack_id}) job was submitted.\n'
+        body += f'Gridpack job: {service_url}?_id={gridpack_id}\n'
+        if files:
+            body += 'You can find job files as an attachment.\n'
+
+        subject = f'Gridpack {gridpack_name} was submitted'
+        recipients = [f'{user}@cern.ch' for user in gridpack.get_users()]
+        emailer = EmailSender(Config.get('ssh_credentials'))
+        emailer.send(subject, body, recipients, files)
 
     def send_done_notification(self, gridpack, files=None):
         """
