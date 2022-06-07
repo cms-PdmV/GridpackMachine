@@ -6,7 +6,7 @@ import json
 import time
 from copy import deepcopy
 from config import Config
-from utils import get_available_campaigns, get_available_cards, get_git_branches
+from utils import get_available_campaigns, get_available_cards, get_available_tunes, get_git_branches
 from user import User
 
 
@@ -71,6 +71,11 @@ class Gridpack():
         if dataset not in cards[generator][process]:
             return f'Bad dataset "{dataset}"'
 
+        tunes = get_available_tunes()
+        tune = self.data['tune']
+        if tune not in tunes:
+            return f'Bad tune "{tune}"'
+
         return None
 
     def reset(self):
@@ -108,6 +113,12 @@ class Gridpack():
         Setter for condor id
         """
         self.data['condor_id'] = condor_id
+
+    def get(self, key):
+        """
+        Return a value from data dictionary
+        """
+        return self.data[key]
 
     def get_json(self):
         return deepcopy(self.data)

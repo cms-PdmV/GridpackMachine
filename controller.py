@@ -5,7 +5,13 @@ import zipfile
 from database import Database
 from gridpack import Gridpack
 from email_sender import EmailSender
-from utils import clean_split, get_available_campaigns, get_available_cards, get_git_branches, get_jobs_in_condor, run_command
+from utils import (clean_split,
+                   get_available_campaigns,
+                   get_available_cards,
+                   get_available_tunes,
+                   get_git_branches,
+                   get_jobs_in_condor,
+                   run_command)
 from ssh_executor import SSHExecutor
 from config import Config
 from threading import Lock
@@ -37,7 +43,8 @@ class Controller():
                      'git pull'])
         self.repository_tree = {'campaigns': get_available_campaigns(cache=False),
                                 'cards': get_available_cards(cache=False),
-                                'branches': branches}
+                                'branches': branches,
+                                'tunes': get_available_tunes(cache=False)}
         self.last_repository_tick = int(time.time())
 
     def tick(self):

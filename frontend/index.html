@@ -39,6 +39,9 @@
       height: 30px;
       background: white;
     }
+    tr:hover {
+      background: #eee !important;
+    }
     table {
       margin-left: auto;
       margin-right: auto;
@@ -163,6 +166,7 @@
         <td>
           <span style="cursor: pointer;" title="Delete gridpack job" @click="deleteGridpack(gridpack)">&#10007;</span>
           <span style="cursor: pointer;" title="Reset job" @click="resetGridpack(gridpack)">&#8634;</span>
+          <!-- <a style="color:rgba(0, 0, 0, 0.87)" title="Show fragment" :href="'api/get_fragment/' + gridpack._id" @click="showFragment(gridpack)">&#9641;</span> -->
         </td>
         <td>
           {{gridpack.beamNice}}
@@ -247,7 +251,9 @@
                   <input type="number" min="0" v-model="wizardObject.beam">
                 </td>
                 <td>
-                  <input type="text" v-model="wizardObject.tune">
+                  <select v-model="wizardObject.tune">
+                    <option v-for="tune in systemInfo.options.tunes" :key="tune">{{tune}}</option>
+                  </select>
                 </td>
                 <td>
                   <input type="number" min="0" v-model="wizardObject.events">

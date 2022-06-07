@@ -7,6 +7,7 @@ import json
 import os
 from flask import Flask, send_file, request, make_response
 from flask_restful import Api
+from fragment_builder import FragmentBuilder
 from scheduler import Scheduler
 from controller import Controller
 from gridpack import Gridpack
@@ -159,6 +160,23 @@ def get_gridpacks():
     """
     database = Database()
     return output_text(database.get_gridpacks())
+
+
+@app.route('/api/get_fragment/<string:gridpack_id>')
+def get_fragment(gridpack_id):
+    """
+    API to get gridpack's fragment
+    """
+    database = Database()
+    gridpack_json = database.get_gridpack(gridpack_id)
+    if not gridpack_json:
+        return output_text({'message': 'Gridpack not found'}, code=404)
+
+    gridpack = Gridpack.make(gridpack_json)
+    fragment_builder = FragmentBuilder()
+    fragment = fragment_builder.build_fragment(gridpack)
+
+    return output_text(fragment, headers={'Content-Type': 'text/plain'})
 
 
 def user_info_dict():
