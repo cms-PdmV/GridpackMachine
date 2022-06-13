@@ -6,7 +6,7 @@ import json
 import time
 from copy import deepcopy
 from config import Config
-from utils import get_available_campaigns, get_available_cards, get_available_tunes, get_git_branches
+from utils import get_available_campaigns, get_available_cards, get_git_branches
 from user import User
 
 
@@ -45,10 +45,6 @@ class Gridpack():
         if genproductions not in branches:
             return f'Bad GEN productions branch "{genproductions}"'
 
-        beam = self.data['beam']
-        if beam <= 0:
-            return f'Bad beam "{beam}"'
-
         events = self.data['events']
         if events <= 0:
             return f'Bad events "{events}"'
@@ -70,11 +66,6 @@ class Gridpack():
         dataset = self.data['dataset']
         if dataset not in cards[generator][process]:
             return f'Bad dataset "{dataset}"'
-
-        tunes = get_available_tunes()
-        tune = self.data['tune']
-        if tune not in tunes:
-            return f'Bad tune "{tune}"'
 
         return None
 
@@ -225,6 +216,30 @@ class Gridpack():
         Make an archive with all necessary card files
         """
         raise NotImplementedError('prepare_job_archive() must be implemented in subclass')
+
+    def customize_file(self, input_file_name, user_additions, replacements, output_file_name):
+        # Initial file
+        self.logger.debug('Reading file %s', input_file_name)
+        with open(input_file_name) as input_file:
+            contents = input_file.read()
+
+        # Append user settings
+        if user_additions:
+            contents = contents.strip() + '\n\n# User settings\n'
+            for user_line in contents:
+                self.logger.debug('Appeding %s', user_line)
+                contents += f'{user_line}\n'
+
+        # Variable replacement
+        if replacements:
+            for variable, value in replacements.items():
+                self.logger.debug('Replacing $%s with "%s"', variable, value)
+                contents = contents.replace(f'${variable}', str(value))
+
+        self.logger.debug('Writing customized file %s', output_file_name)
+        with open(output_file_name, 'w') as output_file:
+            output_file.write(contents.strip())
+            output_file.write('\n')
 
     def prepare_script(self):
         """

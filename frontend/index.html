@@ -169,7 +169,7 @@
           <!-- <a style="color:rgba(0, 0, 0, 0.87)" title="Show fragment" :href="'api/get_fragment/' + gridpack._id" @click="showFragment(gridpack)">&#9641;</span> -->
         </td>
         <td>
-          {{gridpack.beamNice}}
+          {{gridpack.beam}}
         </td>
         <td>
           {{gridpack.tune}}
@@ -217,8 +217,6 @@
                 <th>Generator</th>
                 <th>Process</th>
                 <th>Dataset</th>
-                <th>Beam energy</th>
-                <th>Tune</th>
                 <th>Events</th>
                 <th>GEN productions</th>
                 <th>Actions</th>
@@ -245,14 +243,6 @@
                 <td>
                   <select v-if="wizardObject.process" v-model="wizardObject.dataset" @change="wizardSelectDataset(wizardObject, wizardObject.dataset)">
                     <option v-for="dataset in systemInfo.options.cards[wizardObject.generator][wizardObject.process]" :key="dataset">{{dataset}}</option>
-                  </select>
-                </td>
-                <td>
-                  <input type="number" min="0" v-model="wizardObject.beam">
-                </td>
-                <td>
-                  <select v-model="wizardObject.tune">
-                    <option v-for="tune in systemInfo.options.tunes" :key="tune">{{tune}}</option>
                   </select>
                 </td>
                 <td>
@@ -353,7 +343,6 @@
             let gridpacks = data[0];
             for (let gridpack of gridpacks) {
               gridpack.eventsNice = gridpack.events.toLocaleString('en-US');
-              gridpack.beamNice = gridpack.beam.toLocaleString('en-US');
               gridpack.newestHistory = gridpack.history.slice(-3);
               for (let entry of gridpack.newestHistory) {
                 entry.timeNiceShort = moment(new Date(entry.time * 1000.0)).format('MMM DD HH:mm');
@@ -477,8 +466,6 @@
             process: undefined,
             dataset: undefined,
             events: 0,
-            tune: undefined,
-            beam: 0,
             genproductions: undefined,
           };
           if (this.systemInfo.options.branches.includes('master')) {
@@ -514,16 +501,6 @@
               alert('Please enter a positive number of events in row ' + index);
               return;
             }
-            gridpack.beam = parseInt(gridpack.beam);
-            if (gridpack.beam <= 0) {
-              alert('Please enter a positive beam energy in row ' + index);
-              return;
-            }
-            gridpack.tune = gridpack.tune.trim();
-            if (gridpack.tune == '') {
-              alert('Please enter a tune in row ' + index);
-              return;
-            }
             index++;
           }
           this.createGridpacks(this.wizardObjects);
@@ -542,8 +519,6 @@
             process: wizardObject.process,
             dataset: wizardObject.dataset,
             events: wizardObject.events,
-            tune: wizardObject.tune,
-            beam: wizardObject.beam,
             genproductions: wizardObject.genproductions,
           });
         },

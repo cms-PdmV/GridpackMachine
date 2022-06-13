@@ -21,7 +21,6 @@ CONDOR_STATUS = {'0': 'UNEXPLAINED',
 BRANCHES_CACHE = {}
 CAMPAIGNS_CACHE = {}
 CARDS_CACHE = {}
-TUNES_CACHE = []
 
 
 def clean_split(string, separator=',', maxsplit=-1):
@@ -138,25 +137,6 @@ def get_available_cards(cache=True):
                 CARDS_CACHE.setdefault(generator, {})[process] = datasets
 
     return CARDS_CACHE
-
-
-def get_available_tunes(cache=True):
-    """
-    Get list of available tunes
-    """
-    global TUNES_CACHE
-    if not cache or not TUNES_CACHE:
-        imports_path = os.path.join(Config.get('gridpack_files_path'), 'Fragments', 'imports.json')
-        if not os.path.isfile(imports_path):
-            TUNES_CACHE = []
-            return TUNES_CACHE
-
-        with open(imports_path) as imports_file:
-            imports = json.load(imports_file)
-
-        TUNES_CACHE = sorted(list(set(imports.get('tune', []))))
-
-    return TUNES_CACHE
 
 
 def get_indentation(phrase, text):

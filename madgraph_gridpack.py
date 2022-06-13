@@ -16,64 +16,33 @@ class MadgraphGridpack(Gridpack):
 
     def prepare_run_card(self):
         """
-        Copy cards from campaign template directory to local directory
+        Copy cards from "Template" directory and customize them
         """
-        dataset_name = self.data['dataset']
-        template_path = self.get_templates_path()
-        job_files_path = self.get_job_files_path()
-        run_card_file_path = os.path.join(job_files_path, f'{dataset_name}_run_card.dat')
-        if dataset_name.rsplit("_", 1)[1].startswith("amcatnlo"):
-            os.system(f"cp {template_path}/NLO_run_card.dat {run_card_file_path}")
-        elif dataset_name.rsplit("_", 1)[1].startswith("madgraph"):
-            os.system(f"cp {template_path}/LO_run_card.dat {run_card_file_path}")
-        else:
-            self.logger.error('Could not find "amcatnlo" or "madgraph" in "%s"', dataset_name)
-            raise Exception()
-
-        with open(run_card_file_path) as input_file:
-            self.logger.debug('Reading %s...', run_card_file_path)
-            run_card_file = input_file.read()
-
         dataset_dict = self.get_dataset_dict()
-        beam = str(self.data['beam'])
-        run_card_file = run_card_file.replace('$ebeam1', beam)
-        run_card_file = run_card_file.replace('$ebeam2', beam)
-        for key, value in dataset_dict.get('run_card', {}).items():
-            key = f'${key}'
-            self.logger.debug('Replacing "%s" with "%s" in %s', key, value, run_card_file_path)
-            run_card_file = run_card_file.replace(key, value)
-
-        with open(run_card_file_path, 'w') as output_file:
-            self.logger.debug('Writing %s...', run_card_file_path)
-            output_file.write(run_card_file)
+        template_name = dataset_dict.get('template')
+        dataset_name = self.data['dataset']
+        input_file_name = os.path.join(self.get_templates_path(), template_name)
+        job_files_path = self.get_job_files_path()
+        output_file_name = os.path.join(job_files_path, f'{dataset_name}_run_card.dat')
+        self.customize_file(input_file_name,
+                            dataset_dict.get('template_user', []),
+                            dataset_dict.get('template_vars', []),
+                            output_file_name)
 
     def prepare_customize_card(self):
         """
         Copy cards from "ModelParams" directory and customize them
         """
         dataset_dict = self.get_dataset_dict()
-        scheme_name = dataset_dict.get('scheme')
-        if not scheme_name:
-            return
-
+        model_params_name = dataset_dict.get('model_params')
         dataset_name = self.data['dataset']
-        scheme_file = os.path.join(self.get_model_params_path(), scheme_name)
+        input_file_name = os.path.join(self.get_model_params_path(), model_params_name)
         job_files_path = self.get_job_files_path()
-        customized_file = os.path.join(job_files_path, f'{dataset_name}_customizecards.dat')
-        self.logger.debug('Reading scheme file %s', scheme_file)
-        with open(scheme_file) as scheme_file:
-            scheme = scheme_file.read()
-
-        scheme = scheme.split('\n')
-        scheme += ['', '# User settings']
-        for user_line in dataset_dict.get('user', []):
-            self.logger.debug('Appeding %s', user_line)
-            scheme += [user_line]
-
-        scheme = '\n'.join(scheme)
-        self.logger.debug('Writing customized scheme file %s', customized_file)
-        with open(customized_file, 'w') as scheme_file:
-            scheme_file.write(scheme)
+        output_file_name = os.path.join(job_files_path, f'{dataset_name}_customizecards.dat')
+        self.customize_file(input_file_name,
+                            dataset_dict.get('model_params_user', []),
+                            dataset_dict.get('model_params_vars', []),
+                            output_file_name)
 
     def prepare_job_archive(self):
         """
