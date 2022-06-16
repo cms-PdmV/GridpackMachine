@@ -55,7 +55,7 @@ class Gridpack():
             return f'Bad campaign "{campaign}"'
 
         generator = self.data['generator']
-        if generator not in campaigns[campaign]:
+        if generator not in campaigns[campaign]['generators']:
             return f'Bad generator "{generator}"'
         
         cards = get_available_cards()
@@ -131,6 +131,23 @@ class Gridpack():
         self.dataset_dict = dataset_dict
         return dataset_dict
 
+    def get_campaign_dict(self):
+        """
+        Return a dictionary from Campaigns directory
+        """
+        if hasattr(self, 'campaign_dict'):
+            return self.campaign_dict
+
+        campaign = self.data['campaign']
+        campaign_path = self.get_campaign_path()
+        campaign_dict_file = os.path.join(campaign_path, f'{campaign}.json')
+        self.logger.debug('Reading %s', campaign_dict_file)
+        with open(campaign_dict_file) as input_file:
+            campaign_dict = json.load(input_file)
+
+        self.campaign_dict = campaign_dict
+        return campaign_dict
+
     def get_cards_path(self):
         """
         Return path to relevant cards directory
@@ -142,24 +159,31 @@ class Gridpack():
         cards_path = os.path.join(files_dir, 'Cards', generator, process, dataset_name)
         return cards_path
 
+    def get_campaign_path(self):
+        """
+        Return path to relevant campaign directory
+        """
+        campaign = self.data['campaign']
+        files_dir = Config.get('gridpack_files_path')
+        campaign_path = os.path.join(files_dir, 'Campaigns', campaign)
+        return campaign_path
+
     def get_templates_path(self):
         """
         Return path to templates directory
         """
-        campaign = self.data['campaign']
+        campaign_path = self.get_campaign_path()
         generator = self.data['generator']
-        files_dir = Config.get('gridpack_files_path')
-        template_path = os.path.join(files_dir, 'Campaigns', campaign, generator, 'Templates')
+        template_path = os.path.join(campaign_path, generator, 'Templates')
         return template_path
 
     def get_model_params_path(self):
         """
         Return path to model params directory
         """
-        campaign = self.data['campaign']
+        campaign_path = self.get_campaign_path()
         generator = self.data['generator']
-        files_dir = Config.get('gridpack_files_path')
-        model_params_path = os.path.join(files_dir, 'Campaigns', campaign, generator, 'ModelParams')
+        model_params_path = os.path.join(campaign_path, generator, 'ModelParams')
         return model_params_path
 
     def get_job_files_path(self):
@@ -217,7 +241,10 @@ class Gridpack():
         """
         raise NotImplementedError('prepare_job_archive() must be implemented in subclass')
 
-    def customize_file(self, input_file_name, user_additions, replacements, output_file_name):
+    def customize_file(self, input_file_name, user_additions, replacements):
+        """
+        Return a file customized with additional lines and variable replacements
+        """
         # Initial file
         self.logger.debug('Reading file %s', input_file_name)
         with open(input_file_name) as input_file:
@@ -226,7 +253,7 @@ class Gridpack():
         # Append user settings
         if user_additions:
             contents = contents.strip() + '\n\n# User settings\n'
-            for user_line in contents:
+            for user_line in user_additions:
                 self.logger.debug('Appeding %s', user_line)
                 contents += f'{user_line}\n'
 
@@ -236,10 +263,7 @@ class Gridpack():
                 self.logger.debug('Replacing $%s with "%s"', variable, value)
                 contents = contents.replace(f'${variable}', str(value))
 
-        self.logger.debug('Writing customized file %s', output_file_name)
-        with open(output_file_name, 'w') as output_file:
-            output_file.write(contents.strip())
-            output_file.write('\n')
+        return contents.strip() + '\n'
 
     def prepare_script(self):
         """

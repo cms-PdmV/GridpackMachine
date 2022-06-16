@@ -3,6 +3,7 @@ import json
 import logging
 from config import Config
 from utils import get_indentation
+from os.path import join as path_join
 
 
 class FragmentBuilder():
@@ -11,7 +12,6 @@ class FragmentBuilder():
         self.logger = logging.getLogger()
         files_dir = Config.get('gridpack_files_path')
         self.fragments_path = os.path.join(files_dir, 'Fragments')
-        self.templates_path = os.path.join(self.fragments_path, 'Templates')
         self.imports_path = os.path.join(self.fragments_path, 'imports.json')
 
     def build_fragment(self, gridpack):
@@ -22,8 +22,19 @@ class FragmentBuilder():
             self.logger.debug('Adding external LHE producer')
             fragment += self.get_external_lhe_producer()
 
-        generator = gridpack.get('dataset').split('_')[-1]
-        fragment += self.get_hadronizer(generator)
+        dataset_dict = gridpack.get_dataset_dict()
+        file_list = dataset_dict.get('fragment', [])
+        if isinstance(file_list, str):
+            file_list = [file_list]
+
+        self.logger.info('List of files for fragment builder: %s', ','.join(file_list))
+        fragment = ''
+        for file_name in file_list:
+            with open(path_join(self.fragments_path, file_name)) as input_file:
+                contents = input_file.read().strip()
+
+            fragment += contents + '\n\n'
+
         fragment = self.fragment_replace(fragment, gridpack)
         return fragment
 
@@ -54,28 +65,18 @@ class FragmentBuilder():
             import_dict = json.load(input_file)
 
         dataset_dict = gridpack.get_dataset_dict()
-        concurrent = dataset_dict.get('concurrent', True)
-        self.logger.debug('Concurrent: %s', concurrent)
-        replace = {}
-        if concurrent:
-            replace["__generateConcurrently__"] = "generateConcurrently = cms.untracked.bool(True),"
-            replace["__concurrent__"] = "Concurrent"
-        else:
-            replace["__generateConcurrently__"] = ""
-            replace["__concurrent__"] = ""
-
+        campaign_dict = gridpack.get_campaign_dict()
+        fragment_vars = dataset_dict.get('fragment_vars', [])
+        fragment_vars.update(campaign_dict.get('fragment_vars', {}))
         tune = gridpack.get('tune')
-        replace["__tuneName__"] = tune
-        replace["__tuneImport__"] = import_dict['tune'][tune]
-        beam_energy = gridpack.get('beam_energy')
-        replace["__comEnergy__"] = str(int(beam_energy) * 2)
-        process_parameters_space = ' ' * get_indentation("__processParameters__", fragment)
-        process_parameters = dataset_dict.get('process_parameters', [])
-        process_parameters = [f"{process_parameters_space}'{p}'," for p in process_parameters]
-        replace["__processParameters__"] = '\n'.join(process_parameters).strip()
-        self.logger.debug('Replace %s', json.dumps(replace, indent=2))
+        fragment_vars['tuneName'] = tune
+        fragment_vars['tuneImport'] = import_dict['tune'][tune]
+        for key, value in fragment_vars.items():
+            if isinstance(value, list):
+                indentation = ' ' * get_indentation(f'${key}', fragment)
+                value = [f'{indentation}{x}' for x in value]
+                value = ',\n'.join(value).strip()
 
-        for key, value in replace.items():
-            fragment = fragment.replace(key, value)
+            fragment = fragment.replace(f'${key}', str(value))
 
         return fragment

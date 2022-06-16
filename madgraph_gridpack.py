@@ -14,35 +14,63 @@ class MadgraphGridpack(Gridpack):
         self.logger.debug('Copying %s/*.dat to %s', cards_path, job_files_path)
         os.system(f'cp {cards_path}/*.dat {job_files_path}')
 
-    def prepare_run_card(self):
+    def get_run_card(self):
         """
-        Copy cards from "Template" directory and customize them
+        Get cards from "Template" directory and customize them
         """
         dataset_dict = self.get_dataset_dict()
-        template_name = dataset_dict.get('template')
-        dataset_name = self.data['dataset']
-        input_file_name = os.path.join(self.get_templates_path(), template_name)
+        campaign_dict = self.get_campaign_dict()
+        templates_path = self.get_templates_path()
+        template_name = dataset_dict['template']
+        replace_vars = dataset_dict.get('template_vars', [])
+        replace_vars.update(campaign_dict.get('template_vars', {}))
+        input_file_name = os.path.join(templates_path, template_name)
+        run_card = self.customize_file(input_file_name,
+                                       dataset_dict.get('template_user', []),
+                                       replace_vars)
+        return run_card
+
+    def prepare_run_card(self):
+        """
+        Get run card and write it to job files dir
+        """
         job_files_path = self.get_job_files_path()
+        dataset_name = self.data['dataset']
         output_file_name = os.path.join(job_files_path, f'{dataset_name}_run_card.dat')
-        self.customize_file(input_file_name,
-                            dataset_dict.get('template_user', []),
-                            dataset_dict.get('template_vars', []),
-                            output_file_name)
+        run_card = self.get_run_card()
+        self.logger.debug('Writing customized run card %s', output_file_name)
+        self.logger.debug(run_card)
+        with open(output_file_name, 'w') as output_file:
+            output_file.write(run_card)
+
+    def get_customize_card(self):
+        """
+        Get cards from "ModelParams" directory and customize them
+        """
+        dataset_dict = self.get_dataset_dict()
+        campaign_dict = self.get_campaign_dict()
+        model_params_path = self.get_model_params_path()
+        model_params_name = dataset_dict['model_params']
+        replace_vars = dataset_dict.get('model_params_vars', [])
+        replace_vars.update(campaign_dict.get('model_params_vars', {}))
+        input_file_name = os.path.join(model_params_path, model_params_name)
+        customize_card = self.customize_file(input_file_name,
+                                             dataset_dict.get('model_params_user', []),
+                                             replace_vars)
+        return customize_card
 
     def prepare_customize_card(self):
         """
-        Copy cards from "ModelParams" directory and customize them
+        Get customize card and write it to job files dir
         """
-        dataset_dict = self.get_dataset_dict()
-        model_params_name = dataset_dict.get('model_params')
-        dataset_name = self.data['dataset']
-        input_file_name = os.path.join(self.get_model_params_path(), model_params_name)
         job_files_path = self.get_job_files_path()
+        dataset_name = self.data['dataset']
         output_file_name = os.path.join(job_files_path, f'{dataset_name}_customizecards.dat')
-        self.customize_file(input_file_name,
-                            dataset_dict.get('model_params_user', []),
-                            dataset_dict.get('model_params_vars', []),
-                            output_file_name)
+        customize_card = self.get_customize_card()
+        self.logger.debug('Writing customized card %s', output_file_name)
+        self.logger.debug(customize_card)
+        with open(output_file_name, 'w') as output_file:
+            output_file.write(customize_card)
 
     def prepare_job_archive(self):
         """

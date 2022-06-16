@@ -2,6 +2,7 @@ import time
 import logging
 import os
 import zipfile
+import traceback
 from database import Database
 from gridpack import Gridpack
 from email_sender import EmailSender
@@ -9,6 +10,7 @@ from utils import (clean_split,
                    get_available_campaigns,
                    get_available_cards,
                    get_git_branches,
+                   get_available_tunes,
                    get_jobs_in_condor,
                    run_command)
 from ssh_executor import SSHExecutor
@@ -25,6 +27,7 @@ class Controller():
         self.repository_tree = {}
         self.database = Database()
         self.gridpacks_to_reset = []
+        self.gridpacks_to_approve = []
         self.gridpacks_to_delete = []
         self.repository_tick_pause = 60
         self.tick_lock = Lock()
@@ -42,7 +45,8 @@ class Controller():
                      'git pull'])
         self.repository_tree = {'campaigns': get_available_campaigns(cache=False),
                                 'cards': get_available_cards(cache=False),
-                                'branches': branches}
+                                'branches': branches,
+                                'tunes': get_available_tunes(cache=False)}
         self.last_repository_tick = int(time.time())
 
     def tick(self):
@@ -73,6 +77,14 @@ class Controller():
 
             self.gridpacks_to_reset = []
 
+        if self.gridpacks_to_approve:
+            # Approve gridpacks
+            self.logger.info('Gridpacks to approve: %s', ','.join(self.gridpacks_to_approve))
+            for gridpack_id in self.gridpacks_to_approve:
+                self.approve_gridpack(gridpack_id)
+
+            self.gridpacks_to_approve = []
+
         # Check gridpacks
         gridpacks_to_check = self.database.get_gridpacks_with_status('submitted,running,finishing')
         self.logger.info('Gridpacks to check: %s', ','.join(g['_id'] for g in gridpacks_to_check))
@@ -92,13 +104,13 @@ class Controller():
                 self.collect_output(gridpack)
 
         # Submit gridpacks
-        gridpacks_to_submit = self.database.get_gridpacks_with_status('new')
+        gridpacks_to_submit = self.database.get_gridpacks_with_status('approved')
         self.logger.info('Gridpacks to submit: %s', ','.join(g['_id'] for g in gridpacks_to_submit))
         for gridpack_json in gridpacks_to_submit:
             gridpack = Gridpack.make(gridpack_json)
             status = gridpack.get_status()
-            if status == 'new':
-                # Double check and if it is new, submit it
+            if status == 'approved':
+                # Double check and if it is approved, submit it
                 self.submit_to_condor(gridpack)
 
     def create(self, gridpack):
@@ -117,6 +129,10 @@ class Controller():
     def reset(self, gridpack_id):
         self.logger.info('Adding %s to reset list', gridpack_id)
         self.gridpacks_to_reset.append(gridpack_id)
+
+    def approve(self, gridpack_id):
+        self.logger.info('Adding %s to approve list', gridpack_id)
+        self.gridpacks_to_approve.append(gridpack_id)
 
     def delete(self, gridpack_id):
         self.logger.info('Adding %s to delete list', gridpack_id)
@@ -137,6 +153,22 @@ class Controller():
         self.terminate_gridpack(gridpack)
         gridpack.reset()
         gridpack.add_history_entry('reset')
+        self.database.update_gridpack(gridpack)
+
+    def approve_gridpack(self, gridpack_id):
+        """
+        Approve a gridpack
+        Terminate it in HTCondor and set to new so it would be submitted again
+        """
+        gridpack_json = self.database.get_gridpack(gridpack_id)
+        if not gridpack_json:
+            self.logger.error('Cannot reset %s because it is not in database', gridpack_id)
+            return
+
+        gridpack = Gridpack.make(gridpack_json)
+        self.logger.info('Approving %s', gridpack)
+        gridpack.set_status('approved')
+        gridpack.add_history_entry('approve')
         self.database.update_gridpack(gridpack)
 
     def delete_gridpack(self, gridpack_id):
@@ -252,7 +284,10 @@ class Controller():
         except Exception as ex:
             gridpack.set_status('failed')
             gridpack.add_history_entry('submission failed')
-            self.logger.error('Exception while trying to submit %s: %s', gridpack, str(ex))
+            self.logger.error('Exception while trying to submit %s: %s\n%s',
+                              gridpack,
+                              str(ex),
+                              traceback.format_exc())
 
         self.database.update_gridpack(gridpack)
 

@@ -21,6 +21,7 @@ CONDOR_STATUS = {'0': 'UNEXPLAINED',
 BRANCHES_CACHE = {}
 CAMPAIGNS_CACHE = {}
 CARDS_CACHE = {}
+TUNES_CACHE = []
 
 
 def clean_split(string, separator=',', maxsplit=-1):
@@ -114,7 +115,11 @@ def get_available_campaigns(cache=True):
         for name in campaigns:
             campaign_path = os.path.join(campaigns_dir, name)
             generators = [g for g in listdir(campaign_path) if isdir(path_join(campaign_path, g))]
-            CAMPAIGNS_CACHE[name] = generators
+            with open(path_join(campaign_path, f'{name}.json')) as campaign_json:
+                campaign_dict = json.load(campaign_json)
+
+            CAMPAIGNS_CACHE[name] = {'generators': generators,
+                                     'tune': campaign_dict.get('tune', '')}
 
     return CAMPAIGNS_CACHE
 
@@ -137,6 +142,25 @@ def get_available_cards(cache=True):
                 CARDS_CACHE.setdefault(generator, {})[process] = datasets
 
     return CARDS_CACHE
+
+
+def get_available_tunes(cache=True):
+    """
+    Get list of available tunes
+    """
+    global TUNES_CACHE
+    if not cache or not TUNES_CACHE:
+        imports_path = os.path.join(Config.get('gridpack_files_path'), 'Fragments', 'imports.json')
+        if not os.path.isfile(imports_path):
+            TUNES_CACHE = []
+            return TUNES_CACHE
+
+        with open(imports_path) as imports_file:
+            imports = json.load(imports_file)
+
+        TUNES_CACHE = sorted(list(set(imports.get('tune', []))))
+
+    return TUNES_CACHE
 
 
 def get_indentation(phrase, text):

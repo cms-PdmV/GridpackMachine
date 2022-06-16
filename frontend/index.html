@@ -82,6 +82,13 @@
     .wizard:hover {
       opacity: 1;
     }
+    td.actions a, td.actions span {
+      color: rgba(0, 0, 0, 0.87);
+      cursor: pointer;
+    }
+    td.actions a:hover {
+      text-decoration: none;
+    }
   </style>
 </head>
 
@@ -131,9 +138,6 @@
         </th>
         <th>Actions</th>
         <th>
-          <span class="sort" @click="onSort('beam')">Beam energy</span>
-        </th>
-        <th>
           <span class="sort" @click="onSort('tune')">Tune</span>
           <br>
           <input type="text" class="header-search" placeholder="Type to search..." v-model="search.tune" @input="onSearch()">
@@ -163,13 +167,13 @@
         <td>
           <small>{{gridpack.process}}/</small>{{gridpack.dataset}}
         </td>
-        <td>
+        <td class="actions">
           <span style="cursor: pointer;" title="Delete gridpack job" @click="deleteGridpack(gridpack)">&#10007;</span>
-          <span style="cursor: pointer;" title="Reset job" @click="resetGridpack(gridpack)">&#8634;</span>
-          <!-- <a style="color:rgba(0, 0, 0, 0.87)" title="Show fragment" :href="'api/get_fragment/' + gridpack._id" @click="showFragment(gridpack)">&#9641;</span> -->
-        </td>
-        <td>
-          {{gridpack.beam}}
+          <span v-if="gridpack.status != 'new'" style="cursor: pointer;" title="Reset job" @click="resetGridpack(gridpack)">&#8634;</span>
+          <span v-if="gridpack.status == 'new'" style="cursor: pointer;" title="Approve gridpack to be submitted" @click="approveGridpack(gridpack)">&#128077;</span>
+          <a title="Show fragment" :href="'api/get_fragment/' + gridpack._id">&#9641;</span>
+          <a title="Show run card" :href="'api/get_run_card/' + gridpack._id">&#8258;</span>
+          <a title="Show customize card" :href="'api/get_customize_card/' + gridpack._id">&#8251;</span>
         </td>
         <td>
           {{gridpack.tune}}
@@ -217,6 +221,7 @@
                 <th>Generator</th>
                 <th>Process</th>
                 <th>Dataset</th>
+                <th>Tune</th>
                 <th>Events</th>
                 <th>GEN productions</th>
                 <th>Actions</th>
@@ -232,7 +237,7 @@
                 </td>
                 <td>
                   <select v-if="wizardObject.campaign" v-model="wizardObject.generator" @change="wizardSelectGenerator(wizardObject, wizardObject.generator)">
-                    <option v-for="generator in systemInfo.options.campaigns[wizardObject.campaign]" :key="generator">{{generator}}</option>
+                    <option v-for="generator in systemInfo.options.campaigns[wizardObject.campaign].generators" :key="generator">{{generator}}</option>
                   </select>
                 </td>
                 <td>
@@ -243,6 +248,11 @@
                 <td>
                   <select v-if="wizardObject.process" v-model="wizardObject.dataset" @change="wizardSelectDataset(wizardObject, wizardObject.dataset)">
                     <option v-for="dataset in systemInfo.options.cards[wizardObject.generator][wizardObject.process]" :key="dataset">{{dataset}}</option>
+                  </select>
+                </td>
+                <td>
+                  <select v-model="wizardObject.tune">
+                    <option v-for="tune in systemInfo.options.tunes" :key="tune">{{tune}}</option>
                   </select>
                 </td>
                 <td>
@@ -406,6 +416,20 @@
             });
           }
         },
+        approveGridpack: function(gridpack) {
+          if (window.confirm('Approve ' + gridpack._id + '?')) {
+            const component = this;
+              $.ajax({
+                url: 'api/approve',
+                type: 'POST',
+                data: JSON.stringify(gridpack),
+                contentType: 'application/json',
+                success: function(result) {
+                  component.getGridpacks();
+                }
+            });
+          }
+        },
         deleteGridpack: function(gridpack) {
           if (window.confirm('Delete ' + gridpack._id + '?')) {
             const component = this;
@@ -443,6 +467,7 @@
         // Create new gridpack wizard
         wizardSelectCampaign: function(wizObject, campaign) {
           wizObject.campaign = campaign;
+          wizObject.tune = this.systemInfo.options.campaigns[campaign].tune;
           this.wizardSelectGenerator(wizObject, undefined);
         },
         wizardSelectGenerator: function(wizObject, generator) {
@@ -466,6 +491,7 @@
             process: undefined,
             dataset: undefined,
             events: 0,
+            tune: '',
             genproductions: undefined,
           };
           if (this.systemInfo.options.branches.includes('master')) {
@@ -519,6 +545,7 @@
             process: wizardObject.process,
             dataset: wizardObject.dataset,
             events: wizardObject.events,
+            tune: wizardObject.tune,
             genproductions: wizardObject.genproductions,
           });
         },
