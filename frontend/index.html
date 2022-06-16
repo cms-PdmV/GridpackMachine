@@ -469,6 +469,9 @@
           wizObject.campaign = campaign;
           wizObject.tune = this.systemInfo.options.campaigns[campaign].tune;
           this.wizardSelectGenerator(wizObject, undefined);
+          if (this.systemInfo.options.branches.includes(campaign)) {
+            wizObject.genproductions = 'master';
+          }
         },
         wizardSelectGenerator: function(wizObject, generator) {
           wizObject.generator = generator;
