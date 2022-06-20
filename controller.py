@@ -16,6 +16,7 @@ from utils import (clean_split,
 from ssh_executor import SSHExecutor
 from config import Config
 from threading import Lock
+from fragment_builder import FragmentBuilder
 
 
 class Controller():
@@ -29,6 +30,7 @@ class Controller():
         self.gridpacks_to_reset = []
         self.gridpacks_to_approve = []
         self.gridpacks_to_delete = []
+        self.gridpacks_to_create_requests = []
         self.repository_tick_pause = 60
         self.tick_lock = Lock()
 
@@ -103,6 +105,14 @@ class Controller():
                 # Refetch after check if running save
                 self.collect_output(gridpack)
 
+        if self.gridpacks_to_create_requests:
+            # Approve gridpacks
+            self.logger.info('Gridpacks to create requests: %s', ','.join(self.gridpacks_to_create_requests))
+            for gridpack_id in self.gridpacks_to_create_requests:
+                self.create_request_for_gridpack(gridpack_id)
+
+            self.gridpacks_to_create_requests = []
+
         # Submit gridpacks
         gridpacks_to_submit = self.database.get_gridpacks_with_status('approved')
         self.logger.info('Gridpacks to submit: %s', ','.join(g['_id'] for g in gridpacks_to_submit))
@@ -129,6 +139,10 @@ class Controller():
     def reset(self, gridpack_id):
         self.logger.info('Adding %s to reset list', gridpack_id)
         self.gridpacks_to_reset.append(gridpack_id)
+
+    def create_request(self, gridpack_id):
+        self.logger.info('Adding %s to create request list', gridpack_id)
+        self.gridpacks_to_create_requests.append(gridpack_id)
 
     def approve(self, gridpack_id):
         self.logger.info('Adding %s to approve list', gridpack_id)
@@ -169,6 +183,21 @@ class Controller():
         self.logger.info('Approving %s', gridpack)
         gridpack.set_status('approved')
         gridpack.add_history_entry('approve')
+        self.database.update_gridpack(gridpack)
+
+    def create_request_for_gridpack(self, gridpack_id):
+        """
+        Create request for a gridpack in McM
+        """
+        gridpack_json = self.database.get_gridpack(gridpack_id)
+        if not gridpack_json:
+            self.logger.error('Cannot reset %s because it is not in database', gridpack_id)
+            return
+
+        gridpack = Gridpack.make(gridpack_json)
+        self.logger.info('Creating request for %s', gridpack)
+        self.create_mcm_request(gridpack)
+        gridpack.add_history_entry('create request')
         self.database.update_gridpack(gridpack)
 
     def delete_gridpack(self, gridpack_id):
@@ -390,6 +419,48 @@ class Controller():
 
         gridpack.rmdir()
         self.database.update_gridpack(gridpack)
+        self.gridpacks_to_create_requests.append(gridpack_id)
+
+    def create_mcm_request(self, gridpack):
+        """
+        Create a request in McM for the given gridpack
+        """
+        remote_directory_base = Config.get('tickets_directory')
+        gridpack_id = gridpack.get_id()
+        remote_directory = f'{remote_directory_base}/{gridpack_id}'
+        tickets_host = Config.get('tickets_host')
+        ssh_credentials = Config.get('ssh_credentials')
+        fragment = FragmentBuilder().build_fragment(gridpack)
+        chain = gridpack.get_campaign_dict().get('chain')
+        dataset_name = gridpack.get('dataset_name')
+        events = gridpack.get('events')
+        with SSHExecutor(tickets_host, ssh_credentials) as ssh:
+            ssh.execute_command([f'rm -rf {remote_directory}',
+                                 f'mkdir -p {remote_directory}'])
+            ssh.upload_file('mcm_gridpack.py',
+                            f'{remote_directory}/mcm_gridpack.py')
+            ssh.upload_as_file(fragment,
+                              f'{remote_directory}/fragment.py')
+
+            command = [f'cd {remote_directory}',
+                       'python3 mcm_gridpack.py --dev '
+                       '--fragment "fragment.py" '
+                       f'--chain "{chain}" '
+                       f'--dataset "{dataset_name}" '
+                       f'--events "{events}"']
+            stdout, stderr, _ = ssh.execute_command(command)
+            self.logger.debug(stdout)
+            self.logger.debug(stderr)
+            stdout = clean_split(stdout, '\n')
+            prepid = None
+            for line in stdout:
+                if line.startswith('REQUEST PREPID:'):
+                    prepid = line.replace('REQUEST PREPID:', '').strip()
+                    break
+
+            gridpack.set_prepid(prepid)
+            # Remove the directory
+            ssh.execute_command([f'rm -rf {remote_directory}'])
 
     def send_submitted_notification(self, gridpack, files=None):
         """

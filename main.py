@@ -156,6 +156,24 @@ def reset_gridpack():
     return output_text({'message': 'OK'})
 
 
+@app.route('/api/create_request', methods=['POST'])
+def create_request():
+    """
+    API to create a request in McM
+    """
+    if not is_user_authorized():
+        return output_text({'message': 'Unauthorized'}, code=403)
+
+    gridpack_dict = json.loads(request.data.decode('utf-8'))
+    gridpack_id = gridpack_dict.get('_id')
+    if not gridpack_id:
+        return output_text({'message': 'No ID'})
+
+    controller.create_request(gridpack_id)
+    scheduler.notify()
+    return output_text({'message': 'OK'})
+
+
 @app.route('/api/delete', methods=['DELETE'])
 def delete_gridpack():
     """

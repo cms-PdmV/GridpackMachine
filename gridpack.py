@@ -16,6 +16,25 @@ MEMORY = CORES * 2000
 
 class Gridpack():
 
+    schema = {
+        '_id': '',
+        'last_update': 0,
+        'campaign': '',
+        'generator': '',
+        'process': '',
+        'dataset': '',
+        'tune': '',
+        'events': 0,
+        'genproductions': '',
+        'status': '',
+        'condor_status': '',
+        'condor_id': 0,
+        'archive': '',
+        'dataset_name': '',
+        'history': [],
+        'prepid': '',
+    }
+
     def __init__(self, data):
         if self.__class__ is Gridpack:
             raise TypeError('Gridpack is an abstract class. Instantiate it with a subclass.')
@@ -40,6 +59,20 @@ class Gridpack():
         raise Exception(f'Could not make gridpack for generator {generator}')
 
     def validate(self):
+        for key, value in self.schema.items():
+            if key not in self.data:
+                self.data[key] = deepcopy(value)
+
+        data_keys = set(self.data.keys())
+        schema_keys = set(self.schema.keys())
+        missing_keys = schema_keys - data_keys
+        if missing_keys:
+            return f'Missing keys {",".join(list(missing_keys))}'
+
+        unknown_keys = data_keys - schema_keys
+        if unknown_keys:
+            return f'Unknown keys {",".join(list(unknown_keys))}'
+
         branches = get_git_branches(Config.get('gen_repository'), cache=True)
         genproductions = self.data['genproductions']
         if genproductions not in branches:
@@ -72,6 +105,7 @@ class Gridpack():
     def reset(self):
         self.set_status('new')
         self.data['archive'] = ''
+        self.data['dataset_name'] = self.get_dataset_name()
         self.set_condor_status('')
         self.set_condor_id(0)
 
@@ -104,6 +138,12 @@ class Gridpack():
         Setter for condor id
         """
         self.data['condor_id'] = condor_id
+
+    def set_prepid(self, prepid):
+        """
+        Setter for prepid in McM
+        """
+        self.data['prepid'] = prepid
 
     def get(self, key):
         """
@@ -341,6 +381,22 @@ class Gridpack():
         self.logger.debug('Writing JDS to %s', jds_path)
         with open(jds_path, 'w') as jds_file:
             jds_file.write('\n'.join(jds))
+
+    def get_dataset_name(self):
+        """
+        Make a full dataset name out of dataset, tune and beam energy
+        """
+        dataset = self.data['dataset']
+        tune = self.data['tune']
+        campaign_dict = self.get_campaign_dict()
+        energy = float(campaign_dict.get('beam', 0) * 2)
+        energy = ('%.2f' % (energy / 1000)).rstrip('.0').replace('.', 'p')
+        tune_energy = f'{tune}_{energy}TeV'
+        dataset_name = dataset.split('_')
+        dataset_name.insert(-1, tune_energy)
+        dataset_name = '_'.join(dataset_name)
+        self.logger.debug('Dataset name for %s is %s', self, dataset_name)
+        return dataset_name
 
     def __str__(self) -> str:
         gridpack_id = self.get_id()

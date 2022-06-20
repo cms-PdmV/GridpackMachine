@@ -4,6 +4,7 @@ Module that handles all SSH operations - both ssh and ftp
 import json
 import time
 import logging
+from io import BytesIO
 import paramiko
 
 
@@ -114,6 +115,23 @@ class SSHExecutor():
 
         return stdout, stderr, exit_code
 
+    def upload_as_file(self, content, copy_to):
+        """
+        Upload given string as file
+        """
+        self.logger.debug('Will upload %s bytes as %s', len(content), copy_to)
+        if not self.ftp_client:
+            self.setup_ftp()
+
+        try:
+            self.ftp_client.putfo(BytesIO(content.encode()), copy_to)
+            self.logger.debug('Uploaded string to %s', copy_to)
+        except Exception as ex:
+            self.logger.error('Error uploading file to %s. %s', copy_to, ex)
+            return False
+
+        return True
+
     def upload_file(self, copy_from, copy_to):
         """
         Upload a file
@@ -130,6 +148,28 @@ class SSHExecutor():
             return False
 
         return True
+
+    def download_as_string(self, copy_from):
+        """
+        Download remote file contents as string
+        """
+        self.logger.debug('Will download file %s as string', copy_from)
+        if not self.ftp_client:
+            self.setup_ftp()
+
+        remote_file = None
+        try:
+            remote_file = self.ftp_client.open(copy_from)
+            contents = remote_file.read()
+            self.logger.debug('Downloaded %s bytes from %s', len(contents), copy_from)
+            return contents.decode('utf-8')
+        except Exception as ex:
+            self.logger.error('Error downloading file from %s. %s', copy_from, ex)
+        finally:
+            if remote_file:
+                remote_file.close()
+
+        return None
 
     def download_file(self, copy_from, copy_to):
         """

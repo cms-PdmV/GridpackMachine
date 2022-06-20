@@ -5,75 +5,68 @@ from gridpack import Gridpack
 
 class PowhegGridpack(Gridpack):
 
-    def prepare_powheg_card(self):
+    def get_run_card(self):
         """
-        Create Powheg cards from templates and user specific input
+        Get cards from "Template" directory and customize them
+        Get cards from "ModelParams" directory and customize them
+        Glue them together
         """
-        self.logger.debug('Start preparing powheg card')
-        # Fill process file with content of process specific template and adjust
-        # settings like beam energy
         dataset_dict = self.get_dataset_dict()
-        if not 'powheg_process' in dataset_dict:
-            self.logger.error('Could not find powheg_process block in dataset dictionary')
-            raise Exception()
+        campaign_dict = self.get_campaign_dict()
+        templates_path = self.get_templates_path()
+        template_name = dataset_dict['template']
+        template_vars = dataset_dict.get('template_vars', [])
+        template_vars['ebeam1'] = campaign_dict.get('beam', 0)
+        template_vars['ebeam2'] = template_vars['ebeam1']
+        template_vars.update(campaign_dict.get('template_vars', {}))
+        input_file_name = os.path.join(templates_path, template_name)
+        run_card = self.customize_file(input_file_name,
+                                       dataset_dict.get('template_user', []),
+                                       template_vars)
 
-        powheg_process = dataset_dict['powheg_process']
-        template_path = self.get_templates_path()
-        process_template_path = os.path.join(template_path, f'{powheg_process}.input')
-        if not os.path.exists(process_template_path):
-            self.logger.error('Could not find process template %s', process_template_path)
-            raise Exception()
-
-        with open(process_template_path) as input_file:
-            self.logger.debug('Reading %s...', process_template_path)
-            process_file = input_file.read()
-
-        beam = str(self.data['beam'])
-        # TODO: sync strategy for PDF and fix pdf input 
-        pdf = '325300'
-        process_file = process_file.replace('$ebeam1', beam)
-        process_file = process_file.replace('$ebeam2', beam)
-        process_file = process_file.replace('$pdf1', pdf)
-        process_file = process_file.replace('$pdf2', pdf)
-
-        # Append campaign specific settings for process 
         model_params_path = self.get_model_params_path()
-        model_params_file_path = os.path.join(model_params_path, f'{powheg_process}.input')
-        if not os.path.exists(model_params_file_path):
-            self.logger.error('Could not find model parameters %s', model_params_file_path)
-            raise Exception()
+        model_params_name = dataset_dict['model_params']
+        model_params_vars = dataset_dict.get('model_params_vars', [])
+        model_params_vars.update(campaign_dict.get('model_params_vars', {}))
+        input_file_name = os.path.join(model_params_path, model_params_name)
+        customize_card = self.customize_file(input_file_name,
+                                             dataset_dict.get('model_params_user', []),
+                                             model_params_vars)
 
-        with open(model_params_file_path) as input_file:
-            self.logger.debug('Reading %s...', model_params_file_path)
-            model_params_file = input_file.read() + '\n'
+        return run_card + '\n' + customize_card
 
-        process_file += model_params_file + '\n'
-        # Append user specific settings 
-        for user_line in dataset_dict.get('user', []):
-            self.logger.debug('Appeding %s', user_line)
-            process_file += user_line + '\n'
-
-        # Write to local powheg steering file 
+    def prepare_run_card(self):
+        """
+        Get run card and write it to job files dir
+        """
         job_files_path = self.get_job_files_path()
-        powheg_steering_file_path = os.path.join(job_files_path, 'powheg.input')
-        with open(powheg_steering_file_path, 'w') as output_file:
-            self.logger.debug('Writing %s...', powheg_steering_file_path)
-            output_file.write(process_file)
+        output_file_name = os.path.join(job_files_path, 'powheg.input')
+        run_card = self.get_run_card()
+        self.logger.debug('Writing customized run card %s', output_file_name)
+        self.logger.debug(run_card)
+        with open(output_file_name, 'w') as output_file:
+            output_file.write(run_card)
 
-    def prepare_procname_card(self):
+    def get_customize_card(self):
         """
         Create card with just the process name for proper Powheg gridpack
         production 
         """
-        self.logger.debug('Preparing card with Powheg process name')
-        job_files_path = self.get_job_files_path()
         dataset_dict = self.get_dataset_dict()
-        powheg_process = dataset_dict['powheg_process']
-        powheg_process_name_file = os.path.join(job_files_path, 'process.dat')
-        with open(powheg_process_name_file, 'w') as output_file:
-            self.logger.debug('Writing %s...', powheg_process_name_file)
-            output_file.write(powheg_process)
-            output_file.write('\n')
+        template_name = dataset_dict['template']
+        return template_name.split('.', 1)[0]
+
+    def prepare_customize_card(self):
+        """
+        Get customize card and write it to job files dir
+        """
+        job_files_path = self.get_job_files_path()
+        output_file_name = os.path.join(job_files_path, 'process.dat')
+        customize_card = self.get_customize_card()
+        self.logger.debug('Writing customized card %s', output_file_name)
+        self.logger.debug(customize_card)
+        with open(output_file_name, 'w') as output_file:
+            output_file.write(customize_card)
 
     def prepare_job_archive(self):
         """
@@ -81,7 +74,7 @@ class PowhegGridpack(Gridpack):
         """
         job_files_path = self.get_job_files_path()
         pathlib.Path(job_files_path).mkdir(parents=True, exist_ok=True)
-        self.prepare_powheg_card()
-        self.prepare_procname_card()
+        self.prepare_run_card()
+        self.prepare_customize_card()
         local_dir = self.local_dir()
         os.system(f'tar -czvf {local_dir}/input_files.tar.gz -C {local_dir} input_files')

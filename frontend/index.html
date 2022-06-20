@@ -122,6 +122,9 @@
     <table>
       <tr>
         <th>
+          <span class="sort" @click="onSort('_id')">ID</span>
+        </th>
+        <th>
           <span class="sort" @click="onSort('campaign')">Campaign</span>
           <br>
           <input type="text" class="header-search" placeholder="Type to search..." v-model="search.campaign" @input="onSearch()">
@@ -153,11 +156,21 @@
           <span class="sort" @click="onSort('condor_status')">Job</span>
         </th>
         <th>Gridpack</th>
+        <th>PrepID</th>
         <th>
           <span class="sort" @click="onSort('last_update')">History</span>
         </th>
       </tr>
       <tr v-for="gridpack in gridpacks" :key="gridpack._id">
+        <td>
+          <small style="letter-spacing: -1px;">
+            {{gridpack._id}}
+            <br>
+            <a :href="'https://github.com/cms-PdmV/GridpackFiles/blob/master/Cards/' + gridpack.generator + '/' + gridpack.process + '/' + gridpack.dataset + '/' + gridpack.dataset + '.json'">Dataset JSON</a>
+            <br>
+            <a :href="'https://github.com/cms-PdmV/GridpackFiles/blob/master/Campaigns/' + gridpack.campaign + '/' + gridpack.campaign + '.json'">Campaign JSON</a>
+          </small>
+        </td>
         <td>
           {{gridpack.campaign}}
         </td>
@@ -166,11 +179,14 @@
         </td>
         <td>
           <small>{{gridpack.process}}/</small>{{gridpack.dataset}}
+          <br>
+          <small>{{gridpack.dataset_name}}</small>
         </td>
         <td class="actions">
           <span style="cursor: pointer;" title="Delete gridpack job" @click="deleteGridpack(gridpack)">&#10007;</span>
           <span v-if="gridpack.status != 'new'" style="cursor: pointer;" title="Reset job" @click="resetGridpack(gridpack)">&#8634;</span>
           <span v-if="gridpack.status == 'new'" style="cursor: pointer;" title="Approve gridpack to be submitted" @click="approveGridpack(gridpack)">&#128077;</span>
+          <span v-if="gridpack.status == 'done'" style="cursor: pointer;" title="Create a request in McM" @click="createRequest(gridpack)">&#9728;</span>
           <a title="Show fragment" :href="'api/get_fragment/' + gridpack._id">&#9641;</span>
           <a title="Show run card" :href="'api/get_run_card/' + gridpack._id">&#8258;</span>
           <a title="Show customize card" :href="'api/get_customize_card/' + gridpack._id">&#8251;</span>
@@ -192,6 +208,9 @@
         </td>
         <td>
           <a :href="'https://pdmv-gridpacks.web.cern.ch/?q=' + gridpack.archive" target="_blank" style="letter-spacing: -0.4px">{{gridpack.archive}}</a>
+        </td>
+        <td>
+          {{gridpack.prepid}}
         </td>
         <td>
           <ul style="text-align: left">
@@ -415,6 +434,20 @@
                 }
             });
           }
+        },
+        createRequest: function(gridpacks) {
+          const component = this;
+          $.ajax({
+            url: 'api/create_request',
+            type: 'POST',
+            data: JSON.stringify(gridpacks),
+            contentType: 'application/json',
+            success: function(result) {
+              component.getGridpacks();
+            }
+          }).fail(function(data) {
+            alert(data.responseJSON.message)
+          });
         },
         approveGridpack: function(gridpack) {
           if (window.confirm('Approve ' + gridpack._id + '?')) {

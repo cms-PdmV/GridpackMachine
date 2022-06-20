@@ -23,6 +23,8 @@ class MadgraphGridpack(Gridpack):
         templates_path = self.get_templates_path()
         template_name = dataset_dict['template']
         replace_vars = dataset_dict.get('template_vars', [])
+        replace_vars['ebeam1'] = campaign_dict.get('beam', 0)
+        replace_vars['ebeam2'] = replace_vars['ebeam1']
         replace_vars.update(campaign_dict.get('template_vars', {}))
         input_file_name = os.path.join(templates_path, template_name)
         run_card = self.customize_file(input_file_name,

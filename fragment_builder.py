@@ -15,13 +15,6 @@ class FragmentBuilder():
         self.imports_path = os.path.join(self.fragments_path, 'imports.json')
 
     def build_fragment(self, gridpack):
-        lhe = bool('lhe' in gridpack.get('campaign').lower())
-        # Build the fragment
-        fragment = 'import FWCore.ParameterSet.Config as cms\n\n'
-        if lhe:
-            self.logger.debug('Adding external LHE producer')
-            fragment += self.get_external_lhe_producer()
-
         dataset_dict = gridpack.get_dataset_dict()
         file_list = dataset_dict.get('fragment', [])
         if isinstance(file_list, str):
@@ -69,8 +62,13 @@ class FragmentBuilder():
         fragment_vars = dataset_dict.get('fragment_vars', [])
         fragment_vars.update(campaign_dict.get('fragment_vars', {}))
         tune = gridpack.get('tune')
+        beam = campaign_dict.get('beam', 0)
         fragment_vars['tuneName'] = tune
+        fragment_vars['comEnergy'] = int(beam * 2)
         fragment_vars['tuneImport'] = import_dict['tune'][tune]
+        archive_path = Config.get('gridpack_directory')
+        archive_name = gridpack.get('archive') or 'Nothing.zip'
+        fragment_vars['pathToProducedGridpack'] = os.path.join(archive_path, archive_name)
         for key, value in fragment_vars.items():
             if isinstance(value, list):
                 indentation = ' ' * get_indentation(f'${key}', fragment)
