@@ -373,7 +373,8 @@ class Controller():
                     break
 
             if gridpack_archive:
-                gridpack_directory = Config.get('gridpack_directory')
+                campaign_dict = gridpack.get_campaign_dict()
+                gridpack_directory = campaign_dict.get('gridpack_directory', Config.get('gridpack_directory'))
                 self.logger.info('Copying gridpack %s/%s->%s', remote_directory, gridpack_archive, gridpack_directory)
                 stdout, stderr, _ = ssh.execute_command(f'rsync -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" {remote_directory}/{gridpack_archive} lxplus.cern.ch:{gridpack_directory}')
                 self.logger.debug(stdout)
