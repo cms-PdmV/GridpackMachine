@@ -33,7 +33,7 @@ class Config():
         cls.__logger.debug(json.dumps(config, indent=2, sort_keys=True))
 
     @classmethod
-    def get(cls, key):
+    def get(cls, key, default=None):
         """
         Get a string from config
         """
@@ -41,7 +41,7 @@ class Config():
             cls.__logger.warning('Config is not loaded or empty!')
             return None
 
-        return cls.__config[key]
+        return cls.__config.get(key, default)
 
     @classmethod
     def set(cls, key, value):
