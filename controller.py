@@ -448,7 +448,7 @@ class Controller():
 
             dev = Config.get('dev')
             command = [f'cd {remote_directory}',
-                       f'python3 mcm_gridpack.py {"--dev" if dev else ""}'
+                       f'python3 mcm_gridpack.py {"--dev" if dev else ""} '
                        '--fragment "fragment.py" '
                        f'--chain "{chain}" '
                        f'--dataset "{dataset_name}" '
