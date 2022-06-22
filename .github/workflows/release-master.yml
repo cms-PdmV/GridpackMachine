@@ -1,0 +1,156 @@
+name: Make new release
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Cron is UTC time, so 23:59 CERN time
+    - cron: "59 22 * * *"
+
+jobs:
+  # Check if new there were new commits after the newest release tag and save as "new_commits" variable
+  check_for_commits:
+    name: Check for new commits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Get the newest hash and latest release hash
+        id: tag_and_commit_hash_chech
+        run: |
+          latest_commit_hash=${{ github.sha }}
+          branch_name=${GITHUB_REF##*/}
+          git fetch --tags
+          latest_tag=$(git tag -l $branch_name-* | tail -n 1)
+          latest_tag_hash=$(git rev-parse $latest_tag)
+          echo "Branch $branch_name"
+          echo "Newest commit $latest_commit_hash"
+          echo "Newest tag $latest_tag hash $latest_tag_hash"
+          if [ "$latest_commit_hash" = "$latest_tag_hash" ]; then
+            echo "Hashes are equal, no new commits"
+            echo "::set-output name=new_commits::false"
+          else
+            echo "Hashes differ, new commits"
+            echo "::set-output name=new_commits::true"
+          fi
+    outputs:
+      new_commits: ${{ steps.tag_and_commit_hash_chech.outputs.new_commits }}
+
+  # Create a github release
+  release:
+    name: Create GitHub release
+    runs-on: ubuntu-latest
+    needs: [check_for_commits]
+    if: ${{ needs.check_for_commits.outputs.new_commits == 'true' }}
+    steps:
+    - name: Create tag
+      id: create_tag
+      run: |
+        branch_name=${GITHUB_REF##*/}
+        release_timestamp=$(TZ=Europe/Paris date +%Y-%m-%d_%H-%M-%S)
+        tag=$branch_name-$release_timestamp
+        echo "New tag $tag"
+        echo "::set-output name=branch_name::$branch_name"
+        echo "::set-output name=release_timestamp::$release_timestamp"
+        echo "::set-output name=tag::$tag"
+    - name: Create release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.create_tag.outputs.tag }}
+        release_name: ${{ steps.create_tag.outputs.tag }}
+        draft: true
+        prerelease: false
+
+    - name: Create artifact files
+      run: |
+        mkdir info
+        echo "${{ steps.create_release.outputs.id }}" > info/release_id
+        echo "${{ steps.create_release.outputs.upload_url }}" > info/upload_url
+        echo "${{ steps.create_tag.outputs.tag }}.tar.gz" > info/archive_name
+        echo "${{ steps.create_tag.outputs.release_timestamp }}" > info/release_timestamp
+        echo "${{ steps.create_tag.outputs.branch_name }}" > info/branch_name
+    - uses: actions/upload-artifact@v1
+      with:
+        name: info
+        path: info
+
+  build:
+    name: Build release
+    needs: [check_for_commits, release]
+    if: ${{ needs.check_for_commits.outputs.new_commits == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: info
+
+    - uses: actions/checkout@v2
+      with:
+        path: GridpackMachine
+        submodules: true
+
+    - name: Save timestamp in release
+      run: cp info/release_timestamp GridpackMachine
+
+    - name: Delete .git folder
+      run: |
+        cd GridpackMachine
+        rm -rf .git
+        rm -f .gitignore
+
+    - name: Create archive
+      id: create_archive
+      run: |
+        archive_name=$(cat info/archive_name)
+        tar -czf $archive_name GridpackMachine/
+
+    - name: Get upload info from artifact files
+      id: upload_info
+      run: |
+        upload_url=$(cat info/upload_url)
+        archive_name=$(cat info/archive_name)
+        echo "::set-output name=upload_url::$upload_url"
+        echo "::set-output name=archive_name::$archive_name"
+    - name: Upload archive
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.upload_info.outputs.upload_url }}
+        asset_path: ${{ steps.upload_info.outputs.archive_name }}
+        asset_name: ${{ steps.upload_info.outputs.archive_name }}
+        asset_content_type: application/gzip
+
+  metadata:
+    name: Publish release
+    needs: [check_for_commits, build]
+    if: ${{ needs.check_for_commits.outputs.new_commits == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/download-artifact@v1
+      with:
+        name: info
+
+    - name: Set publish_info
+      id: publish_info
+      run: |
+        release_id=$(cat info/release_id)
+        branch_name=$(cat info/branch_name)
+        echo "::set-output name=release_id::$release_id"
+        echo "::set-output name=branch_name::$branch_name"
+    - uses: eregon/publish-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        release_id: ${{ steps.publish_info.outputs.release_id }}
+
+    - name: Delete old releases and tags
+      uses: dev-drprasad/delete-older-releases@v0.2.0
+      with:
+        delete_tag_pattern: ${{ steps.publish_info.outputs.branch_name }}-
+        delete_tags: true
+        keep_latest: 3
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
