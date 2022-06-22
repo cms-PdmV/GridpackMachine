@@ -9,6 +9,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
 
+from config import Config
+
 
 class EmailSender():
     """
@@ -56,7 +58,11 @@ class EmailSender():
         ccs = ['PdmV Service Account <pdmvserv@cern.ch>']
         # Create a fancy email message
         message = MIMEMultipart()
-        message['Subject'] = '[Gridpack] %s' % (subject)
+        if Config.get('dev'):
+            message['Subject'] = '[Gridpack-DEV] %s' % (subject)
+        else:
+            message['Subject'] = '[Gridpack] %s' % (subject)
+
         message['From'] = 'PdmV Service Account <pdmvserv@cern.ch>'
         message['To'] = ', '.join(recipients)
         message['Cc'] = ', '.join(ccs)

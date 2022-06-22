@@ -373,8 +373,11 @@ class Controller():
                     break
 
             if gridpack_archive:
-                campaign_dict = gridpack.get_campaign_dict()
-                gridpack_directory = campaign_dict.get('gridpack_directory', Config.get('gridpack_directory'))
+                gridpack_directory = Config.get('gridpack_directory')
+                if not Config.get('dev'):
+                    campaign_dict = gridpack.get_campaign_dict()
+                    gridpack_directory = campaign_dict.get('gridpack_directory', gridpack_directory)
+
                 self.logger.info('Copying gridpack %s/%s->%s', remote_directory, gridpack_archive, gridpack_directory)
                 stdout, stderr, _ = ssh.execute_command(f'rsync -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" {remote_directory}/{gridpack_archive} lxplus.cern.ch:{gridpack_directory}')
                 self.logger.debug(stdout)
@@ -443,8 +446,9 @@ class Controller():
             ssh.upload_as_file(fragment,
                               f'{remote_directory}/fragment.py')
 
+            dev = Config.get('dev')
             command = [f'cd {remote_directory}',
-                       'python3 mcm_gridpack.py --dev '
+                       f'python3 mcm_gridpack.py {"--dev" if dev else ""}'
                        '--fragment "fragment.py" '
                        f'--chain "{chain}" '
                        f'--dataset "{dataset_name}" '

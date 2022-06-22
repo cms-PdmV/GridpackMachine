@@ -300,11 +300,16 @@ def main():
     parser.add_argument('--host',
                         help='Host IP, default is 0.0.0.0',
                         default='0.0.0.0')
+    parser.add_argument('--dev',
+                        help='Run a DEV version of gridpack service',
+                        action='store_true')
     args = vars(parser.parse_args())
     debug = args.get('debug', False)
+    dev = args.get('dev', False)
     setup_console_logging(debug)
     logger = logging.getLogger()
     Config.load('config.cfg', 'DEFAULT')
+    Config.set('dev', dev)
     database_auth = Config.get('database_auth')
     if database_auth:
         Database.set_credentials_file(database_auth)

@@ -2,17 +2,16 @@
 Module that contains global config singleton
 """
 import logging
-import configparser
+from configparser import ConfigParser
+
 
 class Config():
     """
     Global config holder
     """
 
-    __CONFIG_VALUES = {}
-
-    def __init__(self):
-        pass
+    __config = None
+    __logger = logging.getLogger()
 
     @classmethod
     def load(cls, filename, section):
@@ -20,26 +19,37 @@ class Config():
         Get config as a dictionary
         Load only one section
         """
-        logger = logging.getLogger()
-        config = configparser.ConfigParser()
-        config.read(filename)
-        config = dict(config.items(section))
+        parser = ConfigParser()
+        parser.read(filename)
+        config = dict(parser.items(section))
         for key, value in dict(config).items():
             if value.lower() in ('true', 'false'):
                 config[key] = value.lower() == 'true'
             elif value.isdigit():
                 config[key] = int(value)
 
-            logger.info('Loaded value for "%s"', key)
-
-        cls.__CONFIG_VALUES = config
-
-        return config
+        cls.__config = config
+        import json
+        cls.__logger.debug(json.dumps(config, indent=2, sort_keys=True))
 
     @classmethod
-    def get(cls, key, default=None):
+    def get(cls, key):
         """
-        Get a single value from loaded config
+        Get a string from config
         """
-        value = cls.__CONFIG_VALUES.get(key, default)
-        return value
+        if not cls.__config:
+            cls.__logger.warning('Config is not loaded or empty!')
+            return None
+
+        return cls.__config[key]
+
+    @classmethod
+    def set(cls, key, value):
+        """
+        Set value in config
+        """
+        if not cls.__config:
+            cls.__logger.warning('Config is not loaded or empty!')
+            return
+
+        cls.__config[key] = value
