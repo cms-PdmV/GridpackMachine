@@ -2,6 +2,7 @@
 
 <head>
   <title>Gridpack Extravaganza</title>
+  <base href="/gridpack/">
   <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
   <script src="static/moment.min.js"></script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -10,7 +11,6 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900">
   <link rel="stylesheet" type="text/css" href="static/style.css">
   <link rel="stylesheet" type="text/css" href="static/pdmv-development-ribbon.css">
-
   <link rel="icon" type="image/png" href="static/icon.png" />
   <style>
     body {
@@ -215,10 +215,12 @@
           <pre style="margin: 0">{{gridpack.condor_status}} ({{gridpack.condor_id}})</pre>
         </td>
         <td>
-          <a :href="'https://pdmv-gridpacks.web.cern.ch/?q=' + gridpack.archive" target="_blank" style="letter-spacing: -0.4px">{{gridpack.archive}}</a>
+          <a v-if="dev" :href="'https://pdmv-gridpacks.web.cern.ch/?q=' + gridpack.archive" target="_blank" style="letter-spacing: -0.4px">{{gridpack.archive}}</a>
+          <span v-if="!dev" style="letter-spacing: -0.4px">{{gridpack.archive}}</span>
         </td>
         <td>
-          {{gridpack.prepid}}
+          <a v-if="dev" :href="'https://cms-pdmv-dev.cern.ch/mcm/requests?prepid=' + gridpack.prepid" target="_blank">{{gridpack.prepid}}</a>
+          <a v-else :href="'https://cms-pdmv.cern.ch/mcm/requests?prepid=' + gridpack.prepid" target="_blank">{{gridpack.prepid}}</a>
         </td>
         <td>
           <ul style="text-align: left">
@@ -320,6 +322,7 @@
     var app = new Vue({
       el: '#app',
       data: {
+        dev: false,
         user: {},
         systemInfo: {},
         allGridpacks: [],
@@ -349,6 +352,8 @@
         this.getSystemInfo();
         this.getGridpacks();
         setInterval(this.updateTickDisplay, 1000);
+        const domain = document.location.origin;
+        this.dev = !!(domain && domain.includes('dev'));
       },
       mounted() {
         var wizard = document.getElementById('wizard');

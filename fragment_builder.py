@@ -67,6 +67,13 @@ class FragmentBuilder():
         fragment_vars['comEnergy'] = int(beam * 2)
         fragment_vars['tuneImport'] = import_dict['tune'][tune]
         archive_path = Config.get('gridpack_directory')
+        if not Config.get('dev'):
+            campaign_dict = gridpack.get_campaign_dict()
+            archive_path = campaign_dict.get('gridpack_directory', archive_path)
+
+        # Replace to actual cvmfs
+        archive_path = archive_path.replace('/eos/cms/store/group/phys_generator/cvmfs/gridpacks/',
+                                            '/cvmfs/cms.cern.ch/phys_generator/gridpacks/', )
         archive_name = gridpack.get('archive') or 'Nothing.zip'
         fragment_vars['pathToProducedGridpack'] = os.path.join(archive_path, archive_name)
         for key, value in fragment_vars.items():

@@ -11,7 +11,7 @@ mcm = None
 def create_request(fragment_file, dataset_name, chain, events):
     campaign = chain.split('_')[1]
     print('Creating request in %s' % (campaign))
-    request_json = {'pwg': 'PPD',
+    request_json = {'pwg': 'GEN',
                     'member_of_campaign': campaign}
     result = mcm.put('requests', request_json)
     print(result)
