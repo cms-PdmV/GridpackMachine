@@ -1,4 +1,5 @@
 import os
+import glob
 import pathlib
 from gridpack import Gridpack
 
@@ -13,6 +14,8 @@ class MadgraphGridpack(Gridpack):
         job_files_path = self.get_job_files_path()
         self.logger.debug('Copying %s/*.dat to %s', cards_path, job_files_path)
         os.system(f'cp {cards_path}/*.dat {job_files_path}')
+        if glob.glob(f'{cards_path}/*_cuts.f'):
+            os.system(f'cp {cards_path}/*_cuts.f {job_files_path}')
 
     def get_run_card(self):
         """
