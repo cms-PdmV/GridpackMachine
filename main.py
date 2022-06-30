@@ -319,7 +319,9 @@ def main():
     if not debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         tick_interval = int(Config.get('tick_interval', 600))
         repository_update_interval = int(Config.get('repository_update_interval', 1200))
+        logger.info('Adding machine tick with interval %ss', tick_interval)
         scheduler.add_job(tick, tick_interval)
+        logger.info('Adding repository update with interval %ss', repository_update_interval)
         scheduler.add_job(tick_repository, repository_update_interval)
 
     scheduler.start()

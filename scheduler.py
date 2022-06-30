@@ -1,4 +1,5 @@
 import threading
+import logging
 
 
 class Scheduler():
@@ -10,7 +11,12 @@ class Scheduler():
         e = threading.Event()
         def thread_function():
             while self.running:
-                func(*args, **kwargs)
+                try:
+                    func(*args, **kwargs)
+                except Exception as ex:
+                    logger = logging.getLogger()
+                    logger.error('Exception in scheduler %s', ex)
+
                 e.wait(timeout=interval)
 
         thread = threading.Thread(target=thread_function, args=[])
