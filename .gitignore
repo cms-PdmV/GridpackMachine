@@ -111,3 +111,6 @@ nohup.out
 
 # Temp local files
 machine/gridpacks/
+
+# IntelliJ PyCharm
+.idea
