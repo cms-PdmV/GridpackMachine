@@ -378,8 +378,20 @@ class Controller():
                     campaign_dict = gridpack.get_campaign_dict()
                     gridpack_directory = campaign_dict.get('gridpack_directory', gridpack_directory)
 
+                # Append the Generator/Process to the submission gridpack directory path
+                gridpack_generator = gridpack.get('generator')
+                gridpack_process = gridpack.get('process')
+                self.logger.info(
+                    'Gridpack directory base path: %s -> Appending GENERATOR/PROCESS: %s/%s',
+                    gridpack_directory, gridpack_generator, gridpack_process
+                )
+                gridpack_directory = "/".join([gridpack_directory, gridpack_generator, gridpack_process])
+                self.logger.info('New gridpack directory path: %s', gridpack_directory)
                 self.logger.info('Copying gridpack %s/%s->%s', remote_directory, gridpack_archive, gridpack_directory)
-                stdout, stderr, _ = ssh.execute_command(f'rsync -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" {remote_directory}/{gridpack_archive} lxplus.cern.ch:{gridpack_directory}')
+
+                # Use -avR option to enable parent directory creation in case it does not exist in the remote server
+                # Reference: man rsync line 542
+                stdout, stderr, _ = ssh.execute_command(f'rsync -avR -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" {remote_directory}/{gridpack_archive} lxplus.cern.ch:{gridpack_directory}')
                 self.logger.debug(stdout)
                 self.logger.debug(stderr)
 
