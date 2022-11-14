@@ -391,7 +391,7 @@ class Gridpack():
         campaign_dict = self.get_campaign_dict()
         energy = float(campaign_dict.get('beam', 0) * 2)
         energy = ('%.2f' % (energy / 1000)).rstrip('.0').replace('.', 'p')
-        tune_energy = f'{tune}_{energy}TeV'
+        tune_energy = f'Tune{tune}_{energy}TeV'
         dataset_name = dataset.split('_')
         dataset_name.insert(-1, tune_energy)
         dataset_name = '_'.join(dataset_name)
