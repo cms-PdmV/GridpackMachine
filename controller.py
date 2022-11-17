@@ -244,12 +244,22 @@ class Controller():
                              os.popen('ls -l %s' % (gridpack.local_dir())).read())
 
             self.logger.info('Will prepare remote directory for %s', gridpack)
+
             # Prepare remote directory. Delete old one and create a new one
             gridpack_id = gridpack.get_id()
             remote_directory_base = Config.get('remote_directory')
-            remote_directory = f'{remote_directory_base}/{gridpack_id}'
             submission_host = Config.get('submission_host')
             ssh_credentials = Config.get('ssh_credentials')
+
+            # Append the Generator/Process to the submission gridpack directory path
+            gridpack_generator = gridpack.get('generator')
+            gridpack_process = gridpack.get('process')
+            self.logger.info(
+                '[submit_to_condor] Submission to condor: Gridpack directory base path: %s -> Appending GENERATOR/PROCESS: %s/%s',
+                remote_directory_base, gridpack_generator, gridpack_process
+            )
+            remote_directory = "/".join([remote_directory_base, gridpack_generator, gridpack_process, gridpack_id])
+            self.logger.info('[submit_to_condor] New gridpack directory path: %s', remote_directory)
             with SSHExecutor(submission_host, ssh_credentials) as ssh:
                 ssh.execute_command([f'rm -rf {remote_directory}',
                                      f'mkdir -p {remote_directory}'])
@@ -347,7 +357,16 @@ class Controller():
         remote_directory_base = Config.get('remote_directory')
         gridpack_id = gridpack.get_id()
         dataset_name = gridpack.data['dataset']
-        remote_directory = f'{remote_directory_base}/{gridpack_id}'
+
+        # Remote directory used for submission
+        # Append the Generator/Process to the submission gridpack directory path
+        gridpack_generator = gridpack.get('generator')
+        gridpack_process = gridpack.get('process')
+        remote_directory = "/".join([remote_directory_base, gridpack_generator, gridpack_process, gridpack_id])
+        self.logger.info(
+            '[collect_output] Retriving Gridpack execution logs from: %s',
+            remote_directory
+        )
         submission_host = Config.get('submission_host')
         ssh_credentials = Config.get('ssh_credentials')
         local_directory = gridpack.local_dir()
@@ -355,16 +374,11 @@ class Controller():
         stdout = ''
         gridpack_archive = ''
         with SSHExecutor(submission_host, ssh_credentials) as ssh:
-            ssh.download_file(f'{remote_directory}/job.log',
-                              f'{local_directory}/job.log')
-            ssh.download_file(f'{remote_directory}/output.log',
-                              f'{local_directory}/output.log')
-            ssh.download_file(f'{remote_directory}/error.log',
-                              f'{local_directory}/error.log')
             # Get gridpack archive name
             stdout, stderr, _ = ssh.execute_command([f'ls -1 {remote_directory}/*{dataset_name}*.t*z'])
-            self.logger.debug(stdout)
             self.logger.debug(stderr)
+            self.logger.debug(stdout)
+
             stdout = clean_split(stdout, '\n')
             for line in stdout:
                 filename = clean_split(line, '/')[-1]
@@ -372,7 +386,38 @@ class Controller():
                     gridpack_archive = filename
                     break
 
+            # If gridpack_archive path is empty, maybe we are dealing with an update before restructure
+            # of the path storage. Use the old remote storage pattern
+            if not gridpack_archive:
+                remote_directory = "/".join([remote_directory_base, gridpack_id])
+                self.logger.info(
+                    '[collect_output] Checking if Gridpack was stored inside a folder that uses the old submission path: %s',
+                    remote_directory
+                )
+                # Get gridpack archive name
+                stdout, stderr, _ = ssh.execute_command([f'ls -1 {remote_directory}/*{dataset_name}*.t*z'])
+                self.logger.debug(stderr)
+                stdout = clean_split(stdout, '\n')
+                for line in stdout:
+                    filename = clean_split(line, '/')[-1]
+                    if dataset_name in filename and filename.endswith(('.tar.xz', '.tar.gz', '.tgz')):
+                        gridpack_archive = filename
+                        break
+
             if gridpack_archive:
+                self.logger.info(
+                    '[collect_output] Retriving execution output from: %s',
+                    remote_directory
+                )
+
+                # Download content
+                ssh.download_file(f'{remote_directory}/job.log',
+                                  f'{local_directory}/job.log')
+                ssh.download_file(f'{remote_directory}/output.log',
+                                  f'{local_directory}/output.log')
+                ssh.download_file(f'{remote_directory}/error.log',
+                                  f'{local_directory}/error.log')
+
                 gridpack_directory = Config.get('gridpack_directory')
                 if not Config.get('dev'):
                     campaign_dict = gridpack.get_campaign_dict()
