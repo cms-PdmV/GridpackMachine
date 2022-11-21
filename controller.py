@@ -343,6 +343,37 @@ class Controller():
         gridpack.set_condor_status(condor_status)
         self.database.update_gridpack(gridpack)
 
+    def get_storage_path(self, ssh, remote_directory_base, gridpack):
+        """
+        Fetch the storage remote path on a server looking first for the new storage pattern and if it is not
+        available, look for the old
+        """
+        gridpack_generator = gridpack.get('generator')
+        gridpack_process = gridpack.get('process')
+        gridpack_id = gridpack.get_id()
+        remote_directory = "/".join([remote_directory_base, gridpack_generator, gridpack_process, gridpack_id])
+
+        self.logger.info('[get_storage_path] Validating if remote storage path exists: %s' % remote_directory)
+        stdout, stderr, exit_code = ssh.execute_command([f'ls -alrh {remote_directory}'])
+        self.logger.debug(stdout)
+        self.logger.error(stderr)
+
+        if stderr and exit_code != 0:
+            self.logger.info(
+                '[get_storage_path] There is an error checking the remote storage path: %s, checking old storage path'
+                ' format' % remote_directory
+            )
+            remote_directory = "/".join([remote_directory_base, gridpack_id])
+            self.logger.info('[get_storage_path] Validating old storage path to check if it exists: %s' % remote_directory)
+            stdout_old, stderr_old, exit_code_old = ssh.execute_command([f'ls -alrh {remote_directory}'])
+            self.logger.debug(stdout_old)
+            self.logger.error(stderr_old)
+
+            if stderr_old and exit_code_old != 0:
+                raise ValueError('[get_storage_path] Storage path: None of the expected formats exists.')
+
+        return remote_directory
+
     def collect_output(self, gridpack):
         """
         When gridpack finishes running in HTCondor, download it's output logs,
@@ -357,16 +388,6 @@ class Controller():
         remote_directory_base = Config.get('remote_directory')
         gridpack_id = gridpack.get_id()
         dataset_name = gridpack.data['dataset']
-
-        # Remote directory used for submission
-        # Append the Generator/Process to the submission gridpack directory path
-        gridpack_generator = gridpack.get('generator')
-        gridpack_process = gridpack.get('process')
-        remote_directory = "/".join([remote_directory_base, gridpack_generator, gridpack_process, gridpack_id])
-        self.logger.info(
-            '[collect_output] Retriving Gridpack execution logs from: %s',
-            remote_directory
-        )
         submission_host = Config.get('submission_host')
         ssh_credentials = Config.get('ssh_credentials')
         local_directory = gridpack.local_dir()
@@ -375,6 +396,11 @@ class Controller():
         gridpack_archive = ''
         with SSHExecutor(submission_host, ssh_credentials) as ssh:
             # Get gridpack archive name
+            remote_directory = self.get_storage_path(
+                ssh=ssh,
+                remote_directory_base=remote_directory_base,
+                gridpack=gridpack
+            )
             stdout, stderr, _ = ssh.execute_command([f'ls -1 {remote_directory}/*{dataset_name}*.t*z'])
             self.logger.debug(stderr)
             self.logger.debug(stdout)
@@ -385,24 +411,6 @@ class Controller():
                 if dataset_name in filename and filename.endswith(('.tar.xz', '.tar.gz', '.tgz')):
                     gridpack_archive = filename
                     break
-
-            # If gridpack_archive path is empty, maybe we are dealing with an update before restructure
-            # of the path storage. Use the old remote storage pattern
-            if not gridpack_archive:
-                remote_directory = "/".join([remote_directory_base, gridpack_id])
-                self.logger.info(
-                    '[collect_output] Checking if Gridpack was stored inside a folder that uses the old submission path: %s',
-                    remote_directory
-                )
-                # Get gridpack archive name
-                stdout, stderr, _ = ssh.execute_command([f'ls -1 {remote_directory}/*{dataset_name}*.t*z'])
-                self.logger.debug(stderr)
-                stdout = clean_split(stdout, '\n')
-                for line in stdout:
-                    filename = clean_split(line, '/')[-1]
-                    if dataset_name in filename and filename.endswith(('.tar.xz', '.tar.gz', '.tgz')):
-                        gridpack_archive = filename
-                        break
 
             if gridpack_archive:
                 self.logger.info(
@@ -443,7 +451,7 @@ class Controller():
                         '[collect_output] Creating remote storage path on eos through lxplus: %s' % gridpack_directory
                     )
                     self.logger.info('[collect_output] Standard error pipe:')
-                    self.logger.info(lxplus_stderr)
+                    self.logger.error(lxplus_stderr)
                     self.logger.debug(lxplus_stdout)
                     self.logger.info('[collect_output] Closing connection to lxplus.cern.ch')
 
