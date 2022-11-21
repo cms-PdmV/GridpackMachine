@@ -434,14 +434,25 @@ class Controller():
                 self.logger.info('New gridpack directory path: %s', gridpack_directory)
                 self.logger.info('Copying gridpack %s/%s->%s', remote_directory, gridpack_archive, gridpack_directory)
 
-                # Use -avR option to enable parent directory creation in case it does not exist in the remote server
-                # Reference: man rsync line 542
-                stdout, stderr, _ = ssh.execute_command(f'rsync -avR -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" {remote_directory}/{gridpack_archive} lxplus.cern.ch:{gridpack_directory}')
+                # Open another connection to lxplus.cern.ch to create the gridpack remote directory,
+                # Sadly, rsync -avR seems to be unable to perform mkdir -p
+                with SSHExecutor('lxplus.cern.ch', ssh_credentials) as lxplus_ssh:
+                    # Get gridpack archive name
+                    lxplus_stdout, lxplus_stderr, _ = lxplus_ssh.execute_command([f'mkdir -p {gridpack_directory}'])
+                    self.logger.info(
+                        '[collect_output] Creating remote storage path on eos through lxplus: %s' % gridpack_directory
+                    )
+                    self.logger.info('[collect_output] Standard error pipe:')
+                    self.logger.info(lxplus_stderr)
+                    self.logger.debug(lxplus_stdout)
+                    self.logger.info('[collect_output] Closing connection to lxplus.cern.ch')
+
+                stdout, stderr, _ = ssh.execute_command(f'rsync -av -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" {remote_directory}/{gridpack_archive} lxplus.cern.ch:{gridpack_directory}')
                 self.logger.debug(stdout)
                 self.logger.debug(stderr)
 
             # Remove the directory
-            ssh.execute_command([f'rm -rf {remote_directory}'])
+            # ssh.execute_command([f'rm -rf {remote_directory}'])
 
         downloaded_files = []
         if os.path.isfile(f'{local_directory}/job.log'):
