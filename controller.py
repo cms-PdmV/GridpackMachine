@@ -438,6 +438,8 @@ class Controller():
         chain = gridpack.get_campaign_dict().get('chain')
         dataset_name = gridpack.get('dataset_name')
         events = gridpack.get('events')
+        process = gridpack.get('process')
+
         with SSHExecutor(tickets_host, ssh_credentials) as ssh:
             ssh.execute_command([f'rm -rf {remote_directory}',
                                  f'mkdir -p {remote_directory}'])
@@ -452,7 +454,9 @@ class Controller():
                        '--fragment "fragment.py" '
                        f'--chain "{chain}" '
                        f'--dataset "{dataset_name}" '
-                       f'--events "{events}"']
+                       f'--events "{events}"'
+                       f'--tag "{process}"'
+                       ]
             stdout, stderr, _ = ssh.execute_command(command)
             self.logger.debug(stdout)
             self.logger.debug(stderr)
