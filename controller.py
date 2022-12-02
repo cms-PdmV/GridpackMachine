@@ -454,7 +454,7 @@ class Controller():
                        '--fragment "fragment.py" '
                        f'--chain "{chain}" '
                        f'--dataset "{dataset_name}" '
-                       f'--events "{events}"'
+                       f'--events "{events}" '
                        f'--tag "{process}"'
                        ]
             stdout, stderr, _ = ssh.execute_command(command)
