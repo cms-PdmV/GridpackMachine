@@ -70,7 +70,11 @@ def api_tick():
     if not is_user_authorized():
         return output_text({"message": "Unauthorized"}, code=403)
 
+    tick()
+    return output_text({"message": "OK"})
 
+
+@app.route("/api/tick_repository")
 def api_tick_repository():
     """
     API to trigger a controller tick for repository data
