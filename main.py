@@ -4,7 +4,7 @@ Module that contains start of the program
 import argparse
 import logging
 import os
-from app import app, set_app, scheduler
+from src.app import app, set_app, scheduler
 
 
 def main():

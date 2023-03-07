@@ -9,13 +9,13 @@ from flask_restful import Api
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 from middlewares.auth import AuthenticationMiddleware
-from fragment_builder import FragmentBuilder
-from scheduler import Scheduler
-from controller import Controller
-from gridpack import Gridpack
-from database import Database
-from config import Config
-from user import User
+from src.gridpack.fragment_builder import FragmentBuilder
+from src.utils.scheduler import Scheduler
+from src.controller.controller import Controller
+from src.gridpack.gridpack import Gridpack
+from src.database.database import Database
+from src.utils.config import Config
+from src.utils.user import User
 
 
 app = Flask(__name__, static_folder="./frontend/static", template_folder="./frontend")

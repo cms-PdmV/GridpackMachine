@@ -4,8 +4,8 @@ This module handles User class
 from copy import deepcopy
 from flask import session
 from flask import g as request_context
-from config import Config
-from utils import clean_split
+from src.utils.config import Config
+from src.utils.utils import clean_split
 
 
 class User:
