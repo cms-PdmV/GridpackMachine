@@ -339,6 +339,11 @@ def set_app(
     if database_auth:
         Database.set_credentials_file(database_auth)
 
+    # Set cookie secret
+    secret_key = Config.get("secret_key")
+    logger.info("Setting Flask secret key")
+    app.secret_key = secret_key
+
     # Instantiate controller
     controller = Controller()
 
