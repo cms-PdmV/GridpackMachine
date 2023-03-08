@@ -16,6 +16,7 @@ from src.gridpack.gridpack import Gridpack
 from src.database.database import Database
 from src.utils.config import Config
 from src.utils.user import User
+from src.utils.utils import parse_bool
 
 
 app = Flask(__name__, static_folder="./frontend/static", template_folder="./frontend")
@@ -309,9 +310,7 @@ def setup_console_logging(debug):
     )
 
 
-def set_app(
-    config_path: str = "config.cfg", mode: str = "dev", debug: bool = False
-) -> tuple[str, int, bool]:
+def set_app(config_path: str = "config.cfg") -> tuple[str, int, bool]:
     """
     Set Flask appplication configuration via config.cfg file
 
@@ -319,24 +318,29 @@ def set_app(
     ----------
     config_path : str
         Path to config.cfg file with all environment variables
-    mode: str
-        Web server deployment mode: dev or prod
-    debug: bool
-        Set DEBUG logging level
 
     Returns
     ----------
-    tuple[str, int, bool]
-        Host name, port number, debug mode configurations for deployment server
+    tuple[str, int, bool, bool]
+        Host name, port number, development mode
+        and debug mode (for logging and Werkzeug server)
     """
     global controller, auth
 
-    setup_console_logging(debug)
     logger = logging.getLogger()
     logger.info("Loading configuration from %s", config_path)
-    Config.load("config.cfg", "DEFAULT")
-    logger.info("Flask application deployment mode: %s", mode)
-    Config.set("dev", mode)
+    Config.load(config_path, "DEFAULT")
+
+    # Deployment configuration
+    host = Config.get("host", "0.0.0.0")
+    port = Config.get("port", 8001)
+    development = parse_bool(Config.get("dev", True))
+    debug = parse_bool(Config.get("debug", True))
+
+    logger.info("Debug mode: %s", debug)
+    setup_console_logging(debug)
+    logger.info("Flask application deployment mode: %s", development)
+    Config.set("dev", development)
 
     database_auth = Config.get("database_auth")
     logger.info("Database authentication credentials taken from: %s", database_auth)
@@ -370,3 +374,10 @@ def set_app(
             "Adding repository update with interval %ss", repository_update_interval
         )
         scheduler.add_job(tick_repository, repository_update_interval)
+
+    logger.info("Flask application configuration: ")
+    logger.info("Host: %s", host)
+    logger.info("Port: %s", port)
+    logger.info("Debug: %s", debug)
+    logger.info("Deployment mode: %s", development)
+    return host, port, development, debug

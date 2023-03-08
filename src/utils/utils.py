@@ -26,6 +26,17 @@ CARDS_CACHE = {}
 TUNES_CACHE = []
 
 
+def parse_bool(value: str | None) -> bool:
+    """
+    Parse a boolean value from a string.
+    If value is None or if it is not equal to "true" string
+    It will return False.
+    """
+    if value and str(value).lower() == "true":
+        return True
+    return False
+
+
 def clean_split(string, separator=",", maxsplit=-1):
     """
     Split a string by separator and collect only non-empty values
