@@ -310,7 +310,7 @@ def setup_console_logging(debug):
     )
 
 
-def set_app(config_path: str = "config.cfg") -> tuple[str, int, bool]:
+def set_app(config_path: str = "config.cfg") -> tuple[str, int, bool, bool]:
     """
     Set Flask appplication configuration via config.cfg file
 
