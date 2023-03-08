@@ -1,0 +1,24 @@
+# Ignore the following files for image building
+.github/
+logs/
+venv/
+frontend/node_modules/
+frontend/dist/
+
+# Append the config file via secret files
+# or environment files
+config.cfg
+
+# Ignore the scripts, they are mainly used by CI workflows
+scripts/
+
+# Ignore Python cache
+__pycache__/
+
+# Ignore Docker Compose files
+gridpack.yaml
+*.pid
+
+# Ignore symbolic links
+files/
+
