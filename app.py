@@ -379,5 +379,5 @@ def set_app(config_path: str = "config.cfg") -> tuple[str, int, bool]:
     logger.info("Host: %s", host)
     logger.info("Port: %s", port)
     logger.info("Debug: %s", debug)
-    logger.info("Deployment mode: %s", development)
+    logger.info("Development mode: %s", development)
     return host, port, development, debug
