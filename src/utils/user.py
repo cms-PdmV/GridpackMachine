@@ -2,8 +2,8 @@
 This module handles User class
 """
 from copy import deepcopy
-from flask import session
-from flask import g as request_context
+from flask import session, has_request_context
+from flask import g as application_context
 from src.utils.config import Config
 from src.utils.utils import clean_split
 
@@ -16,27 +16,27 @@ class User:
     """
 
     def __init__(self):
-        if not request_context:
-            # Not in a request context
-            self.user_info = {
-                "username": "automatic",
-                "name": "automatic",
-                "email": "",
-                "authorized": False,
-            }
+        request_context = has_request_context()
+        if request_context:
+            self.user_info = self.__get_user_info(session_cookie=session)
+            setattr(application_context, "user_info", self.user_info)
         else:
-            if hasattr(request_context, "user_info"):
-                self.user_info = request_context.user_info
+            if hasattr(application_context, "user_info"):
+                self.user_info = application_context.user_info
             else:
-                self.user_info = self.__get_user_info(session_cookie=session)
-                setattr(request_context, "user_info", self.user_info)
+                self.user_info = {
+                    "username": "automatic",
+                    "name": "automatic",
+                    "email": "",
+                    "authorized": False,
+                }
 
     def __get_user_info(self, session_cookie):
         """
         Check request headers and parse user information
         """
         user_data = session_cookie.get("user")
-        username = user_data.get("user")
+        username = user_data.get("username")
         email = user_data.get("email")
         fullname = user_data.get("fullname")
         roles = set(user_data.get("roles"))
