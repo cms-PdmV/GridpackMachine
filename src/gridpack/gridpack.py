@@ -127,7 +127,8 @@ class Gridpack:
         self.data["status"] = status
 
     def get_condor_status(self):
-        return self.data["condor_status"]
+        msg = "Condor status has not been set"
+        return self.data.get("condor_status", msg)
 
     def set_condor_status(self, condor_status):
         """
@@ -136,7 +137,8 @@ class Gridpack:
         self.data["condor_status"] = condor_status
 
     def get_condor_id(self):
-        return self.data["condor_id"]
+        msg = "Condor id has not been set"
+        return self.data.get("condor_id", msg)
 
     def set_condor_id(self, condor_id):
         """
