@@ -177,7 +177,7 @@ class AuthenticationMiddleware:
         :return CERN user information
         :rtype dict
         """
-        username: str = decoded_token.get("cern_upn")
+        username: str = decoded_token.get("sub")
         roles: list[str] = decoded_token.get("cern_roles")
         email: str = decoded_token.get("email")
         given_name: str = decoded_token.get("given_name")
