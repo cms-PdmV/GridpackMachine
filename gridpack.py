@@ -10,7 +10,7 @@ from utils import get_available_campaigns, get_available_cards, get_git_branches
 from user import User
 
 
-CORES = 8
+CORES = 16
 MEMORY = CORES * 2000
 
 
