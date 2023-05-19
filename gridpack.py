@@ -10,7 +10,7 @@ from utils import get_available_campaigns, get_available_cards, get_git_branches
 from user import User
 
 
-CORES = 8
+CORES = 16
 MEMORY = CORES * 2000
 
 
@@ -351,30 +351,21 @@ class Gridpack():
         """
         gridpack_id = self.get_id()
         script_name = f'GRIDPACK_{gridpack_id}.sh'
-        jds = [f'executable              = {script_name}',
-               'transfer_input_files    = input_files.tar.gz',
-               'when_to_transfer_output = on_exit',
-               'should_transfer_files   = yes',
-               '+JobFlavour             = "testmatch"',
-               # '+JobFlavour             = "longlunch"',
-               'output                  = output.log',
-               'error                   = error.log',
-               'log                     = job.log',
-               f'RequestCpus             = {CORES}',
-               f'RequestMemory           = {MEMORY}',
-               '+accounting_group       = highprio',
-               '+AccountingGroup        = "highprio.pdmvserv"',
-               '+AcctGroup              = "highprio"',
-               '+AcctGroupUser          = "pdmvserv"',
-               '+DESIRED_Sites          = "T2_CH_CERN"',
-               '+REQUIRED_OS            = "rhel7"',
-               'leave_in_queue          = JobStatus == 4 && (CompletionDate =?= UNDEFINED || ((CurrentTime - CompletionDate) < 7200))',
-               '+CMS_Type               = "test"',
-               '+CMS_JobType            = "PdmVGridpack"',
-               '+CMS_TaskType           = "PdmVGridpack"',
-               '+CMS_SubmissionTool     = "Condor_SI"',
-               '+CMS_WMTool             = "Condor_SI"',
-               'queue']
+        jds = [
+            f"executable              = {script_name}",
+            "transfer_input_files    = input_files.tar.gz",
+            "when_to_transfer_output = ON_EXIT_OR_EVICT",
+            "should_transfer_files   = yes",
+            '+JobFlavour             = "nextweek"',
+            "output                  = output.log",
+            "error                   = error.log",
+            "log                     = job.log",
+            f"RequestCpus             = {CORES}",
+            f"RequestMemory           = {MEMORY}",
+            '+REQUIRED_OS            = "rhel7"',
+            "leave_in_queue          = JobStatus == 4 && (CompletionDate =?= UNDEFINED || ((CurrentTime - CompletionDate) < 7200))",
+            "queue",
+        ]
 
         jds_name = f'GRIDPACK_{gridpack_id}.jds'
         jds_path = os.path.join(self.local_dir(), jds_name)
