@@ -35,12 +35,12 @@ class EmailSender():
             credentials['password'] = self.credentials.split(':')[1]
 
         self.logger.info('Credentials loaded successfully: %s', credentials['username'])
-        self.smtp = smtplib.SMTP(host='smtp.cern.ch', port=587)
+        self.smtp = smtplib.SMTP(host='cernmx.cern.ch', port=25)
         # self.smtp.connect()
         self.smtp.ehlo()
         self.smtp.starttls()
         self.smtp.ehlo()
-        self.smtp.login(credentials['username'], credentials['password'])
+        # self.smtp.login(credentials['username'], credentials['password'])
 
     def __close_smtp(self):
         """
