@@ -360,9 +360,10 @@ class Gridpack():
             "output                  = output.log",
             "error                   = error.log",
             "log                     = job.log",
-            f"RequestCpus             = {CORES}",
-            f"RequestMemory           = {MEMORY}",
+            f"RequestCpus            = {CORES}",
+            f"RequestMemory          = {MEMORY}",
             '+REQUIRED_OS            = "rhel7"',
+            '+AccountingGroup        = "group_u_CMS.u_zh.priority"',
             "leave_in_queue          = JobStatus == 4 && (CompletionDate =?= UNDEFINED || ((CurrentTime - CompletionDate) < 7200))",
             "queue",
         ]
