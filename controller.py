@@ -375,8 +375,11 @@ class Controller():
             if gridpack_archive:
                 gridpack_directory = Config.get('gridpack_directory')
                 if not Config.get('dev'):
-                    campaign_dict = gridpack.get_campaign_dict()
-                    gridpack_directory = campaign_dict.get('gridpack_directory', gridpack_directory)
+                    # Set the path to cvmfs and include generator, process too
+                    gridpack_directory = (
+                        f'/eos/cms/store/group/phys_generator/cvmfs/gridpacks/PdmV/{gridpack.get("campaign")}'
+                        f'/{gridpack.get("generator")}/{gridpack.get("process")}'
+                    )
 
                 self.logger.info('Copying gridpack %s/%s->%s', remote_directory, gridpack_archive, gridpack_directory)
                 stdout, stderr, _ = ssh.execute_command(f'rsync -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" {remote_directory}/{gridpack_archive} lxplus.cern.ch:{gridpack_directory}')

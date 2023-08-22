@@ -68,12 +68,12 @@ class FragmentBuilder():
         fragment_vars['tuneImport'] = import_dict['tune'][tune]
         archive_path = Config.get('gridpack_directory')
         if not Config.get('dev'):
-            campaign_dict = gridpack.get_campaign_dict()
-            archive_path = campaign_dict.get('gridpack_directory', archive_path)
-
-        # Replace to actual cvmfs
-        archive_path = archive_path.replace('/eos/cms/store/group/phys_generator/cvmfs/gridpacks/',
-                                            '/cvmfs/cms.cern.ch/phys_generator/gridpacks/', )
+            # Set the path to cvmfs and include generator, process too
+            archive_path = (
+                f'/cvmfs/cms.cern.ch/phys_generator/gridpacks/PdmV/{gridpack.get("campaign")}'
+                f'/{gridpack.get("generator")}/{gridpack.get("process")}'
+            )
+            
         archive_name = gridpack.get('archive') or 'Nothing.zip'
         fragment_vars['pathToProducedGridpack'] = os.path.join(archive_path, archive_name)
         for key, value in fragment_vars.items():
