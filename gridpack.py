@@ -33,6 +33,7 @@ class Gridpack():
         'dataset_name': '',
         'history': [],
         'prepid': '',
+        'store_into_subfolders': False
     }
 
     def __init__(self, data):
@@ -233,6 +234,29 @@ class Gridpack():
         local_dir = self.local_dir()
         job_files = os.path.join(local_dir, 'input_files')
         return job_files
+
+    def get_remote_storage_path(self) -> str:
+        """
+        Retrieves the remote storage path for saving the resulting
+        Gridpack. For production environments, Gridpacks will be stored into
+        GEN group folder in /eos/
+
+        Returns:
+            str: Gridpack remote storage path
+        """
+        store_into_subfolders: bool = self.data.get("store_into_subfolders", False)
+        gridpack_directory: str = Config.get("gridpack_directory")
+        if not Config.get("dev"):
+            if store_into_subfolders:
+                gridpack_directory = (
+                    f'/eos/cms/store/group/phys_generator/cvmfs/gridpacks/PdmV/{self.get("campaign")}'
+                    f'/{self.get("generator")}/{self.get("process")}'
+                )
+            else:
+                gridpack_directory = (
+                    f'/eos/cms/store/group/phys_generator/cvmfs/gridpacks/PdmV/{self.get("campaign")}'
+                )
+        return gridpack_directory
 
     def mkdir(self):
         """
