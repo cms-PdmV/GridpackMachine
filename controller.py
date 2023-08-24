@@ -129,6 +129,7 @@ class Controller():
         """
         gridpack_id = str(int(time.time() * 1000))
         gridpack.data['_id'] = gridpack_id
+        gridpack.data['store_into_subfolders'] = True
         gridpack.reset()
         gridpack.data['history'] = []
         gridpack.add_history_entry('created')
@@ -333,7 +334,7 @@ class Controller():
         gridpack.set_condor_status(condor_status)
         self.database.update_gridpack(gridpack)
 
-    def collect_output(self, gridpack):
+    def collect_output(self, gridpack: Gridpack):
         """
         When gridpack finishes running in HTCondor, download it's output logs,
         zip them and send to relevant user via email
@@ -373,14 +374,7 @@ class Controller():
                     break
 
             if gridpack_archive:
-                gridpack_directory = Config.get('gridpack_directory')
-                if not Config.get('dev'):
-                    # Set the path to cvmfs and include generator, process too
-                    gridpack_directory = (
-                        f'/eos/cms/store/group/phys_generator/cvmfs/gridpacks/PdmV/{gridpack.get("campaign")}'
-                        f'/{gridpack.get("generator")}/{gridpack.get("process")}'
-                    )
-
+                gridpack_directory = gridpack.get_remote_storage_path()
                 self.logger.info('Copying gridpack %s/%s->%s', remote_directory, gridpack_archive, gridpack_directory)
                 stdout, stderr, _ = ssh.execute_command(f'rsync -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" {remote_directory}/{gridpack_archive} lxplus.cern.ch:{gridpack_directory}')
                 self.logger.debug(stdout)
