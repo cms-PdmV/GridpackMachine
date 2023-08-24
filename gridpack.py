@@ -244,7 +244,11 @@ class Gridpack():
         Returns:
             str: Gridpack remote storage path
         """
+<<<<<<< HEAD
         store_into_subfolders: bool = self.data.get("store_into_subfolders", False)
+=======
+        store_into_subfolders: bool = self.get("store_into_subfolders")
+>>>>>>> 5749015855486cada94ac9c008013358b87fef8a
         gridpack_directory: str = Config.get("gridpack_directory")
         if not Config.get("dev"):
             if store_into_subfolders:
