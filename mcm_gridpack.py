@@ -8,7 +8,7 @@ from rest import McM
 mcm = None
 
 
-def create_request(fragment_file, dataset_name, chain, events, tag):
+def create_request(fragment_file, dataset_name, chain, events, tag, generator):
     campaign = chain.split('_')[1]
     print('Creating request in %s' % (campaign))
     request_json = {'pwg': 'GEN',
@@ -28,6 +28,8 @@ def create_request(fragment_file, dataset_name, chain, events, tag):
     request['fragment'] = fragment
     request['total_events'] = events
     request['tags'] = [tag]
+    request['mcdb_id'] = 0
+    request['generators'] = [generator]
     result = mcm.update('requests', request)
     print(result)
 
@@ -40,10 +42,18 @@ def main():
     parser.add_argument('--fragment')
     parser.add_argument('--events', type=int)
     parser.add_argument('--tag')
+    parser.add_argument('--generator')
     args = vars(parser.parse_args())
     global mcm
     mcm = McM(dev=args['dev'])
-    create_request(args['fragment'], args['dataset'], args['chain'], args['events'], args['tag'])
+    create_request(
+        args['fragment'], 
+        args['dataset'], 
+        args['chain'], 
+        args['events'], 
+        args['tag'], 
+        args['generator']
+    )
 
 
 if __name__ == '__main__':

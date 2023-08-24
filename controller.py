@@ -436,6 +436,7 @@ class Controller():
         dataset_name = gridpack.get('dataset_name')
         events = gridpack.get('events')
         process = gridpack.get('process')
+        generator = gridpack.get('generator')
 
         with SSHExecutor(tickets_host, ssh_credentials) as ssh:
             ssh.execute_command([f'rm -rf {remote_directory}',
@@ -453,6 +454,7 @@ class Controller():
                        f'--dataset "{dataset_name}" '
                        f'--events "{events}" '
                        f'--tag "{process}"'
+                       f'--generator "{generator}"'
                        ]
             stdout, stderr, _ = ssh.execute_command(command)
             self.logger.debug(stdout)
