@@ -129,6 +129,7 @@ class Controller():
         """
         gridpack_id = str(int(time.time() * 1000))
         gridpack.data['_id'] = gridpack_id
+        gridpack.data['store_into_subfolders'] = True
         gridpack.reset()
         gridpack.data['history'] = []
         gridpack.add_history_entry('created')
@@ -199,6 +200,38 @@ class Controller():
         self.create_mcm_request(gridpack)
         gridpack.add_history_entry('create request')
         self.database.update_gridpack(gridpack)
+
+    def force_request_for_gridpack(self, gridpack_id):
+        """
+        Forces the creation for a request into McM for a Gridpack
+
+        Returns:
+            dict: If there is an invalid precondition for forcing a request for
+                a Gridpack
+            None: If the force process finish successfully
+        """
+        gridpack_json = self.database.get_gridpack(gridpack_id=gridpack_id)
+        if not gridpack_json:
+            msg = 'Cannot force a request for %s because it is not in database' % gridpack_id
+            self.logger.error(msg)
+            return {'message': msg}
+
+        gridpack = Gridpack.make(gridpack_json)
+        if gridpack.get_status() != 'done':
+            msg = ('Cannot force a request for %s because its status is not done' % gridpack_id)
+            self.logger.error(msg)
+            return {'message': msg}
+        
+        if gridpack.get('prepid'):
+            msg = ('Cannot force a request for %s because it has already a valid request in McM' % gridpack_id)
+            self.logger.error(msg)
+            return {'message': msg}
+        
+        self.logger.info('Forcing a request creation for %s', gridpack)
+        self.create_mcm_request(gridpack)
+        gridpack.add_history_entry('force request')
+        self.database.update_gridpack(gridpack)
+        return None
 
     def delete_gridpack(self, gridpack_id):
         """
@@ -333,7 +366,7 @@ class Controller():
         gridpack.set_condor_status(condor_status)
         self.database.update_gridpack(gridpack)
 
-    def collect_output(self, gridpack):
+    def collect_output(self, gridpack: Gridpack):
         """
         When gridpack finishes running in HTCondor, download it's output logs,
         zip them and send to relevant user via email
@@ -373,11 +406,7 @@ class Controller():
                     break
 
             if gridpack_archive:
-                gridpack_directory = Config.get('gridpack_directory')
-                if not Config.get('dev'):
-                    campaign_dict = gridpack.get_campaign_dict()
-                    gridpack_directory = campaign_dict.get('gridpack_directory', gridpack_directory)
-
+                gridpack_directory = gridpack.get_remote_storage_path()
                 self.logger.info('Copying gridpack %s/%s->%s', remote_directory, gridpack_archive, gridpack_directory)
                 stdout, stderr, _ = ssh.execute_command(f'rsync -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" {remote_directory}/{gridpack_archive} lxplus.cern.ch:{gridpack_directory}')
                 self.logger.debug(stdout)
@@ -439,6 +468,7 @@ class Controller():
         dataset_name = gridpack.get('dataset_name')
         events = gridpack.get('events')
         process = gridpack.get('process')
+        generator = gridpack.get('generator')
 
         with SSHExecutor(tickets_host, ssh_credentials) as ssh:
             ssh.execute_command([f'rm -rf {remote_directory}',
@@ -455,7 +485,8 @@ class Controller():
                        f'--chain "{chain}" '
                        f'--dataset "{dataset_name}" '
                        f'--events "{events}" '
-                       f'--tag "{process}"'
+                       f'--tag "{process}" '
+                       f'--generator "{generator}"'
                        ]
             stdout, stderr, _ = ssh.execute_command(command)
             self.logger.debug(stdout)

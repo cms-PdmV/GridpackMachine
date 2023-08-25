@@ -89,6 +89,28 @@ def system_info():
                         'gen_repository': Config.get('gen_repository')})
 
 
+@app.route('/api/mcm', methods=['POST'])
+def force_mcm_request():
+    """
+    This endpoint forces the creation for a request in McM
+    for a completed Gridpack
+    """
+    if not is_user_authorized():
+        return output_text({'message': 'Unauthorized'}, code=403)
+    
+    gridpack_id: str = request.args.get('gridpack_id', '')
+    if not gridpack_id:
+        return output_text(
+            {'message': 'Please choose a Gridpack via request parameter "gridpack_id"'},
+            code=400
+        )
+    
+    force_status = controller.force_request_for_gridpack(gridpack_id=gridpack_id)
+    if isinstance(force_status, dict):
+        return output_text(data=force_status, code=400)
+    
+    return output_text({'message': 'Request forced for %s' % gridpack_id})
+
 @app.route('/api/create', methods=['PUT'])
 def create_gridpack():
     """
