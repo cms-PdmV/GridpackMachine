@@ -201,6 +201,38 @@ class Controller():
         gridpack.add_history_entry('create request')
         self.database.update_gridpack(gridpack)
 
+    def force_request_for_gridpack(self, gridpack_id):
+        """
+        Forces the creation for a request into McM for a Gridpack
+
+        Returns:
+            dict: If there is an invalid precondition for forcing a request for
+                a Gridpack
+            None: If the force process finish successfully
+        """
+        gridpack_json = self.database.get_gridpack(gridpack_id=gridpack_id)
+        if not gridpack_json:
+            msg = 'Cannot force a request for %s because it is not in database' % gridpack_id
+            self.logger.error(msg)
+            return {'message': msg}
+
+        gridpack = Gridpack.make(gridpack_json)
+        if gridpack.get_status() != 'done':
+            msg = ('Cannot force a request for %s because its status is not done' % gridpack_id)
+            self.logger.error(msg)
+            return {'message': msg}
+        
+        if gridpack.get('prepid'):
+            msg = ('Cannot force a request for %s because it has already a valid request in McM' % gridpack_id)
+            self.logger.error(msg)
+            return {'message': msg}
+        
+        self.logger.info('Forcing a request creation for %s', gridpack)
+        self.create_mcm_request(gridpack)
+        gridpack.add_history_entry('force request')
+        self.database.update_gridpack(gridpack)
+        return None
+
     def delete_gridpack(self, gridpack_id):
         """
         Terminate and delete gridpack
