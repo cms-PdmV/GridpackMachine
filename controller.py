@@ -485,7 +485,7 @@ class Controller():
                        f'--chain "{chain}" '
                        f'--dataset "{dataset_name}" '
                        f'--events "{events}" '
-                       f'--tag "{process}"'
+                       f'--tag "{process}" '
                        f'--generator "{generator}"'
                        ]
             stdout, stderr, _ = ssh.execute_command(command)
