@@ -360,7 +360,7 @@ class Gridpack():
                    'echo "Running gridpack_generation.sh"',
                    # Set "pdmv" queue
                    # Stream the log to a public folder
-                   f'mkdir -p {generation_log_file}',
+                   f'mkdir -p {public_stream_folder}',
                    f'./gridpack_generation.sh {dataset_name} input_files pdmv > {generation_log_file} 2>&1',
                    'echo ".t*z archives after gridpack_generation.sh:"',
                    'ls -lha *.t*z',
