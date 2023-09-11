@@ -337,6 +337,9 @@ class Gridpack():
         generator = self.data['generator']
         dataset_name = self.data['dataset']
         genproductions = self.data['genproductions']
+        script_name = f'GRIDPACK_{self.get_id()}.sh'
+        public_stream_folder = Config.get('public_stream_folder')
+        generation_log_file = f'{public_stream_folder}/GRIDPACK_GENERATION_{self.get_id()}.log'
         command = ['#!/bin/sh',
                    'export HOME=$(pwd)',
                    'export ORG_PWD=$(pwd)',
@@ -356,12 +359,13 @@ class Gridpack():
                    'ls -lha input_files/',
                    'echo "Running gridpack_generation.sh"',
                    # Set "pdmv" queue
-                   f'./gridpack_generation.sh {dataset_name} input_files pdmv',
+                   # Stream the log to a public folder
+                   f'mkdir -p {generation_log_file}',
+                   f'./gridpack_generation.sh {dataset_name} input_files pdmv > {generation_log_file} 2>&1',
                    'echo ".t*z archives after gridpack_generation.sh:"',
                    'ls -lha *.t*z',
                    f'mv *{dataset_name}*.t*z $ORG_PWD']
 
-        script_name = f'GRIDPACK_{self.get_id()}.sh'
         script_path = os.path.join(self.local_dir(), script_name)
         self.logger.debug('Writing sh script to %s', script_path)
         with open(script_path, 'w') as script_file:
