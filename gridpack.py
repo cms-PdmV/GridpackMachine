@@ -340,6 +340,12 @@ class Gridpack():
         script_name = f'GRIDPACK_{self.get_id()}.sh'
         public_stream_folder = Config.get('public_stream_folder')
         generation_log_file = f'{public_stream_folder}/GRIDPACK_GENERATION_{self.get_id()}.log'
+
+        # Reference the output.log file created for the submission process
+        remote_directory_base = Config.get('remote_directory')
+        gridpack_id = self.get_id()
+        output_log_file = f'{remote_directory_base}/{gridpack_id}/output.log'
+
         command = ['#!/bin/sh',
                    'export HOME=$(pwd)',
                    'export ORG_PWD=$(pwd)',
@@ -363,7 +369,7 @@ class Gridpack():
                    f'mkdir -p {public_stream_folder}',
                    f'./gridpack_generation.sh {dataset_name} input_files pdmv > {generation_log_file} 2>&1',
                    # Append the streamed output into HTCondor log file
-                   f'cat {generation_log_file} >> _condor_stdout',
+                   f'cat {generation_log_file} >> {output_log_file}',
                    'echo ".t*z archives after gridpack_generation.sh:"',
                    'ls -lha *.t*z',
                    f'mv *{dataset_name}*.t*z $ORG_PWD']
