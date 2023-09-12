@@ -362,6 +362,8 @@ class Gridpack():
                    # Stream the log to a public folder
                    f'mkdir -p {public_stream_folder}',
                    f'./gridpack_generation.sh {dataset_name} input_files pdmv > {generation_log_file} 2>&1',
+                   # Append the streamed output into HTCondor log file
+                   f'cat {generation_log_file} >> _condor_stdout',
                    'echo ".t*z archives after gridpack_generation.sh:"',
                    'ls -lha *.t*z',
                    f'mv *{dataset_name}*.t*z $ORG_PWD']
