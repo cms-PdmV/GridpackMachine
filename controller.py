@@ -12,6 +12,7 @@ from utils import (clean_split,
                    get_git_branches,
                    get_available_tunes,
                    get_jobs_in_condor,
+                   get_latest_log_output_in_condor,
                    run_command)
 from ssh_executor import SSHExecutor
 from config import Config
@@ -104,6 +105,10 @@ class Controller():
             if condor_status in ('DONE', 'REMOVED'):
                 # Refetch after check if running save
                 self.collect_output(gridpack)
+            if condor_status in ('RUN'):
+                # Stream the output to a public area
+                with SSHExecutor(submission_host, ssh_credentials) as ssh:
+                    get_latest_log_output_in_condor(gridpack=gridpack, ssh=ssh)
 
         if self.gridpacks_to_create_requests:
             # Approve gridpacks

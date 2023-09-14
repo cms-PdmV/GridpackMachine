@@ -383,8 +383,6 @@ class Gridpack():
             '+JobFlavour             = "nextweek"',
             "output                  = output.log",
             "error                   = error.log",
-            "stream_output           = True",
-            "stream_error            = True",
             "log                     = job.log",
             f"RequestCpus            = {CORES}",
             f"RequestMemory          = {MEMORY}",

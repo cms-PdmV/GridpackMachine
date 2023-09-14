@@ -85,6 +85,34 @@ def get_jobs_in_condor(ssh=None):
     return jobs_dict
 
 
+def get_latest_log_output_in_condor(gridpack, ssh=None):
+    """
+    Scan the job output log and stores it into the filesystem
+    """
+    logger = logging.getLogger()
+    condor_id = gridpack.get_condor_id()
+    public_stream_folder = Config.get('public_stream_folder')
+    generation_log_file = f'{public_stream_folder}/GRIDPACK_GENERATION_{gridpack.get_id()}.log'
+
+    if condor_id == 0:
+        raise AssertionError(
+            (
+                'This Gridpack should be already submitted and running. '
+                'Its ID must not be zero'
+            )
+        )
+    
+    cmd = f"condor_ssh_to_job {condor_id} 'cat _condor_stdout' >> {generation_log_file}"
+    if ssh:
+        stdout, stderr, exit_code = ssh.execute_command(cmd)
+    else:
+        stdout, stderr, exit_code = run_command(cmd)
+
+    if exit_code != 0:
+        logger.error('HTCondor is failing (%s):\n%s\n%s', exit_code, stdout, stderr)
+        raise Exception('HTCondor status check returned %s', exit_code)
+
+
 def get_git_branches(repository, cache=True):
     """
     Return list of branches in the repostory
