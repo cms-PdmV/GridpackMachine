@@ -102,7 +102,7 @@ def get_latest_log_output_in_condor(gridpack, ssh=None):
             )
         )
     
-    cmd = f"condor_ssh_to_job {condor_id} 'cat _condor_stdout' >> {generation_log_file}"
+    cmd = f"condor_ssh_to_job {condor_id} 'cat _condor_stdout' > {generation_log_file}"
     if ssh:
         stdout, stderr, exit_code = ssh.execute_command(cmd)
     else:
