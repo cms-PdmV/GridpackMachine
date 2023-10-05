@@ -86,7 +86,9 @@ def system_info():
     return output_text({'last_tick': controller.last_tick,
                         'last_repository_tick': controller.last_repository_tick,
                         'options': controller.repository_tree,
-                        'gen_repository': Config.get('gen_repository')})
+                        'gen_repository': Config.get('gen_repository'),
+                        'job_cores': controller.job_cores,
+                        'job_memory': controller.job_memory})
 
 
 @app.route('/api/mcm', methods=['POST'])
