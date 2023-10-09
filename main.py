@@ -144,6 +144,38 @@ def create_gridpack():
     return output_text({'message': gridpack_ids})
 
 
+@app.route('/api/create_approve', methods=['PUT'])
+def create_approve_gridpack():
+    """
+    API to create and approve a gridpack or list of gridpacks
+    """
+    if not is_user_authorized():
+        return output_text({'message': 'Unauthorized'}, code=403)
+
+    logging.info('DATA %s', request.data.decode('utf-8'))
+    gridpacks = json.loads(request.data.decode('utf-8'))
+    if not isinstance(gridpacks, list):
+        gridpacks = [gridpacks]
+
+    gridpack_ids = []
+    for gridpack_dict in gridpacks:
+        try:
+            gridpack = Gridpack.make(gridpack_dict)
+        except Exception as ex:
+            return output_text({'message': str(ex)}, code=400)
+
+        error = gridpack.validate()
+        if error:
+            return output_text({'message': error}, code=400)
+
+        gridpack_id = controller.create(gridpack)
+        _ = controller.approve(gridpack_id)
+        gridpack_ids.append(gridpack_id)
+
+    scheduler.notify()
+    return output_text({'message': gridpack_ids})
+
+
 @app.route('/api/approve', methods=['POST'])
 def approve_gridpack():
     """

@@ -333,6 +333,10 @@
                     :disabled="!wizardObjects.length"
                     @click="wizardCreateGridpacks()">Create {{wizardObjects.length > 1 ? (wizardObjects.length + ' gridpacks') : 'gridpack'}}</button>
             <button type="button"
+                    class="btn btn-sm btn-danger"
+                    :disabled="!wizardObjects.length"
+                    @click="wizardCreateApproveGridpacks()">Create and approve {{wizardObjects.length > 1 ? (wizardObjects.length + ' gridpacks') : 'gridpack'}}</button>
+            <button type="button"
                     class="btn btn-sm btn-secondary"
                     data-dismiss="modal"
                     @click="wizardCancel()">Cancel</button>
@@ -444,10 +448,93 @@
             }
           });
         },
+        verifyGridpacks: function(gridpacks) {
+          let errors = gridpacks.map((gridpack, idx) => {
+              let index = idx + 1;
+              let rowErrors = [];
+              if (gridpack.campaign == undefined) {
+                rowErrors.push('Please select a campaign in row ' + index);
+              }
+              if (gridpack.generator == undefined) {
+                rowErrors.push('Please select a generator in row ' + index);
+              }
+              if (gridpack.process == undefined) {
+                rowErrors.push('Please select a process in row ' + index);
+              }
+              if (gridpack.dataset == undefined) {
+                rowErrors.push('Please select a dataset in row ' + index);
+              }
+              if (gridpack.genproductions == undefined) {
+                rowErrors.push('Please select a genproductions branch in row ' + index);
+              }
+              gridpack.events = parseInt(gridpack.events);
+              if (gridpack.events <= 0) {
+                rowErrors.push('Please enter a positive number of events in row ' + index);
+              }
+              gridpack.job_cores = parseInt(gridpack.job_cores);
+              if (gridpack.job_cores == undefined || isNaN(gridpack.job_cores)) {
+                rowErrors.push('Please set the number of cores in row ' + index);
+              }
+              gridpack.job_memory = parseInt(gridpack.job_memory);
+              if (gridpack.job_memory == undefined || isNaN(gridpack.job_memory)) {
+                rowErrors.push('Please set the memory for the job in row ' + index);
+              }
+              if (gridpack.job_memory < gridpack.job_cores * 1000) {
+                rowErrors.push(`Please avoid to set the memory less than ${gridpack.job_cores * 1000} MB in row ${index}`);
+              }
+              return rowErrors;
+          });
+          
+          let isThereAnyError = errors.some((errorsPerRow) => errorsPerRow.length !== 0);
+          if (isThereAnyError === false) {
+            return "";
+          }
+          
+          // Reduce the message in just one string
+          let errorHeader = "Validation issues\n\n";
+          let totalErrorMessages = 0;
+          let errorMessage = errors.reduce(
+            (currentReducedMessage, errorRecord) => {
+              totalErrorMessages ++;
+              if (errorRecord.length === 0) {
+                return currentReducedMessage;
+              }
+
+              currentReducedMessage += `Row: ${totalErrorMessages}\n`
+              currentReducedMessage += `============================\n`
+              currentReducedMessage += errorRecord.reduce(
+                (reducedPerRow, errorsPerRow) => {
+                    reducedPerRow += `${errorsPerRow}\n`
+                    return reducedPerRow;
+                }, 
+                ""
+              );
+              currentReducedMessage += `\n`
+              return currentReducedMessage;
+            }, 
+            errorHeader
+          );
+          
+          return errorMessage;
+        },
         createGridpacks: function(gridpacks) {
           const component = this;
           $.ajax({
             url: 'api/create',
+            type: 'PUT',
+            data: JSON.stringify(gridpacks),
+            contentType: 'application/json',
+            success: function(result) {
+              component.getGridpacks();
+            }
+          }).fail(function(data) {
+            alert(data.responseJSON.message)
+          });
+        },
+        createApproveGridpacks: function(gridpacks) {
+          const component = this;
+          $.ajax({
+            url: 'api/create_approve',
             type: 'PUT',
             data: JSON.stringify(gridpacks),
             contentType: 'application/json',
@@ -574,49 +661,23 @@
         },
         wizardCreateGridpacks: function() {
           let index = 1;
-          for (let gridpack of this.wizardObjects) {
-            if (gridpack.campaign == undefined) {
-              alert('Please select a campaign in row ' + index);
-              return;
-            }
-            if (gridpack.generator == undefined) {
-              alert('Please select a generator in row ' + index);
-              return;
-            }
-            if (gridpack.process == undefined) {
-              alert('Please select a process in row ' + index);
-              return;
-            }
-            if (gridpack.dataset == undefined) {
-              alert('Please select a dataset in row ' + index);
-              return;
-            }
-            if (gridpack.genproductions == undefined) {
-              alert('Please select a genproductions branch in row ' + index);
-              return;
-            }
-            gridpack.events = parseInt(gridpack.events);
-            if (gridpack.events <= 0) {
-              alert('Please enter a positive number of events in row ' + index);
-              return;
-            }
-            gridpack.job_cores = parseInt(gridpack.job_cores);
-            if (gridpack.job_cores == undefined || isNaN(gridpack.job_cores)) {
-              alert('Please set the number of cores in row ' + index);
-              return;
-            }
-            gridpack.job_memory = parseInt(gridpack.job_memory);
-            if (gridpack.job_memory == undefined || isNaN(gridpack.job_memory)) {
-              alert('Please set the memory for the job in row ' + index);
-              return;
-            }
-            if (gridpack.job_memory < gridpack.job_cores * 1000) {
-              alert(`Please avoid to set the memory less than ${gridpack.job_cores * 1000} MB in row ${index}`);
-              return;
-            }
-            index++;
+          const errorMessages = this.verifyGridpacks(this.wizardObjects);
+          if (errorMessages !== "") {
+            alert(errorMessages);
+            return;
           }
           this.createGridpacks(this.wizardObjects);
+          $('#createGridpackModal').modal('hide');
+          this.wizardObjects = [];
+        },
+        wizardCreateApproveGridpacks: function() {
+          let index = 1;
+          const errorMessages = this.verifyGridpacks(this.wizardObjects);
+          if (errorMessages !== "") {
+            alert(errorMessages);
+            return;
+          }
+          this.createApproveGridpacks(this.wizardObjects);
           $('#createGridpackModal').modal('hide');
           this.wizardObjects = [];
         },
