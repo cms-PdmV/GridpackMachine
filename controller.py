@@ -34,6 +34,8 @@ class Controller():
         self.gridpacks_to_create_requests = []
         self.repository_tick_pause = 60
         self.tick_lock = Lock()
+        self.job_cores = [1, 2, 4, 8, 16, 32, 64]
+        self.job_memory = [cores * 1000 for cores in self.job_cores]
 
     def update_repository_tree(self):
         now = int(time.time())

@@ -10,8 +10,7 @@ from utils import get_available_campaigns, get_available_cards, get_git_branches
 from user import User
 
 
-CORES = 16
-MEMORY = CORES * 2000
+MEMORY_FACTOR_MB = 1000
 
 
 class Gridpack():
@@ -33,7 +32,9 @@ class Gridpack():
         'dataset_name': '',
         'history': [],
         'prepid': '',
-        'store_into_subfolders': False
+        'store_into_subfolders': False,
+        'job_cores': 16,
+        'job_memory': 32000
     }
 
     def __init__(self, data):
@@ -100,6 +101,12 @@ class Gridpack():
         dataset = self.data['dataset']
         if dataset not in cards[generator][process]:
             return f'Bad dataset "{dataset}"'
+        
+        memory = self.data['job_memory']
+        cores = self.data['job_cores']
+        minimum_memory = cores * MEMORY_FACTOR_MB
+        if memory < minimum_memory:
+            return f'Memory set for Gridpack should be equal or greater than {minimum_memory} MB'
 
         return None
 
@@ -133,6 +140,18 @@ class Gridpack():
 
     def get_condor_id(self):
         return self.data['condor_id']
+    
+    def get_cores(self):
+        return self.data.get(
+            'job_cores',
+            Gridpack.schema['job_cores']
+        )
+    
+    def get_memory(self):
+        return self.data.get(
+            'job_memory',
+            Gridpack.schema['job_memory']
+        )
 
     def set_condor_id(self, condor_id):
         """
@@ -341,7 +360,7 @@ class Gridpack():
         command = ['#!/bin/sh',
                    'export HOME=$(pwd)',
                    'export ORG_PWD=$(pwd)',
-                   f'export NB_CORE={CORES}',
+                   f'export NB_CORE={self.get_cores()}',
                    f'wget https://github.com/{repository}/tarball/{genproductions} -O genproductions.tar.gz',
                    'tar -xzf genproductions.tar.gz',
                    f'GEN_FOLDER=$(ls -1 | grep {repository.replace("/", "-")}- | head -n 1)',
@@ -384,8 +403,8 @@ class Gridpack():
             "output                  = output.log",
             "error                   = error.log",
             "log                     = job.log",
-            f"RequestCpus            = {CORES}",
-            f"RequestMemory          = {MEMORY}",
+            f"RequestCpus            = {self.get_cores()}",
+            f"RequestMemory          = {self.get_memory()}",
             '+REQUIRED_OS            = "rhel7"',
             '+AccountingGroup        = "group_u_CMS.u_zh.priority"',
             "leave_in_queue          = JobStatus == 4 && (CompletionDate =?= UNDEFINED || ((CurrentTime - CompletionDate) < 7200))",
