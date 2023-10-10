@@ -116,9 +116,11 @@
       </header>
     </div>
 
+    <!-- Empty container for inter-space -->
     <div class="container" style="padding-top: 76px;">
     </div>
-
+    
+    <!-- Top bar - Control panel -->
     <div class="container mt-4" style="text-align: center;" v-if="user.authorized">
       <button type="button" class="btn btn-success btn-sm elevation-3 ml-1 mr-1" data-toggle="modal" data-target="#createGridpackModal">Create gridpacks</button>
       <button type="button" class="btn btn-info btn-sm elevation-3 ml-1 mr-1" @click="forceTick()">Machine tick</button>
@@ -127,6 +129,23 @@
         <small>Machine tick {{systemInfo.lastTickNice}} ago | Repository refresh {{systemInfo.lastTickRepositoryNice}} ago</small>
       </div>
     </div>
+    <div class="container mt-1" style="text-align: center;" v-if="totalPages > 0">
+      <div>
+        <small>Seeing Gridpacks: {{currentGridpacks[0] + 1}} to {{currentGridpacks[1]}} | Total Gridpacks after filters: {{totalCurrentGridpacks}}</small>  
+      </div>
+      <div>
+        <button type="button" 
+                  class="btn btn-link" 
+                  @click="previousPage()" 
+                  v-if="currentPage > 0"><<</button>
+        <small>Page {{currentPage + 1}} of {{totalPages + 1}}</small>
+        <button type="button" 
+                  class="btn btn-link" 
+                  @click="nextPage()" 
+                  v-if="currentPage !== totalPages">>></button>
+      </div>
+    </div>
+    <!-- Gridpack table -->
     <table>
       <tr>
         <th>
@@ -171,7 +190,8 @@
           <span class="sort" @click="onSort('last_update')">History</span>
         </th>
       </tr>
-      <tr v-for="gridpack in gridpacks" :key="gridpack._id">
+      <!-- Gridpack elements -->
+      <tr v-for="gridpack in gridpacksInPage" :key="gridpack._id">
         <td>
           <small style="letter-spacing: -1px;">
             {{gridpack._id}}
@@ -356,6 +376,8 @@
         allGridpacks: [],
         gridpacks: [],
         totalGridpacks: 0,
+        currentPage: 0,
+        elementsPerPage: 10,
         wizardObjects: [],
         defaultSortOn: '_id',
         sortOn: undefined,
@@ -366,6 +388,26 @@
           generator: undefined,
           dataset: undefined,
           tune: undefined,
+        },
+      },
+      computed: {
+        totalCurrentGridpacks: function() {
+          return this.gridpacks.length;
+        },
+        totalPages: function() {
+          return Math.floor(this.totalCurrentGridpacks / this.elementsPerPage);
+        },
+        currentGridpacks: function() {
+          const startSlice = this.currentPage * this.elementsPerPage;
+          const endSlice = Math.min(
+            this.totalCurrentGridpacks,
+            (this.currentPage + 1) * this.elementsPerPage
+          );
+          return [startSlice, endSlice];
+        },
+        gridpacksInPage: function() {
+          const [startSlice, endSlice] = this.currentGridpacks;
+          return this.gridpacks.slice(startSlice, endSlice);
         },
       },
       created() {
@@ -714,6 +756,8 @@
         // Search and sort
         onSearch: function() {
           this.gridpacks = this.applySort(this.applyFilters(this.allGridpacks));
+          // Avoid empty pages with the older group of elements
+          this.currentPage = 0;
           this.updateQuery();
         },
         onSort: function(attribute) {
@@ -721,6 +765,14 @@
           this.sortOn = attribute;
           this.gridpacks = this.applySort(this.gridpacks);
           this.updateQuery();
+        },
+        nextPage: function() {
+          const newPage = Math.min(this.currentPage + 1, this.totalPages);
+          this.currentPage = newPage;
+        },
+        previousPage: function() {
+          const newPage = Math.max(this.currentPage - 1, 0);
+          this.currentPage = newPage;
         },
         applyFilters: function(gridpacks) {
           for (let attribute in this.search) {
