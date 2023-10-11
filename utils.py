@@ -241,7 +241,7 @@ def check_append_path(root: str, relative: str) -> pathlib.Path:
 
 
 def retrieve_all_files_available(
-    folders: list[pathlib.Path],
+    folders: list,
     ssh_session: SSHExecutor
 ) -> dict:
     """
@@ -250,7 +250,7 @@ def retrieve_all_files_available(
     Sort all the elements based on this date.
 
     Args:
-        folders (list[str]): List of folders to check
+        folders (list[pathlib.Path]): List of folders to check
         ssh_session (SSHExecutor): SSH session to a remote host
             where all the folders are reachable.
 

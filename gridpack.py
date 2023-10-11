@@ -286,7 +286,7 @@ class Gridpack():
             gridpack_directory = "/eos/cms/store/group/phys_generator/cvmfs/gridpacks/PdmV/"
         
         # Include the subpath
-        subpath_elements: list[str] = [
+        subpath_elements = [
             self.get("campaign"),
             self.get("generator"),
             self.get("process")
