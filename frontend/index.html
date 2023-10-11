@@ -129,7 +129,7 @@
         <small>Machine tick {{systemInfo.lastTickNice}} ago | Repository refresh {{systemInfo.lastTickRepositoryNice}} ago</small>
       </div>
     </div>
-    <div class="container mt-1" style="text-align: center;" v-if="totalPages > 0">
+    <div class="container mt-1" style="text-align: center;" v-if="totalPages >= 0">
       <div>
         <small>Seeing Gridpacks: {{currentGridpacks[0] + 1}} to {{currentGridpacks[1]}} | Total Gridpacks after filters: {{totalCurrentGridpacks}}</small>  
       </div>
@@ -395,7 +395,10 @@
           return this.gridpacks.length;
         },
         totalPages: function() {
-          return Math.floor(this.totalCurrentGridpacks / this.elementsPerPage);
+          let pages = Math.floor(this.totalCurrentGridpacks / this.elementsPerPage);
+          const fullPages = this.totalCurrentGridpacks % this.elementsPerPage === 0;
+          pages = fullPages ? pages - 1 : pages;
+          return pages;
         },
         currentGridpacks: function() {
           const startSlice = this.currentPage * this.elementsPerPage;
