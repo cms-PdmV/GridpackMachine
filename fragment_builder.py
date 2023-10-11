@@ -71,8 +71,17 @@ class FragmentBuilder():
         archive_path = gridpack.get_remote_storage_path()
         archive_path = archive_path.replace('/eos/cms/store/group/phys_generator/cvmfs/gridpacks/',
                                             '/cvmfs/cms.cern.ch/phys_generator/gridpacks/', )
-        archive_name = gridpack.get('archive') or 'Nothing.zip'
-        fragment_vars['pathToProducedGridpack'] = os.path.join(archive_path, archive_name)
+        # Set the final path
+        final_archive_path = ''
+        archive_reused_path = gridpack.get_archive_reused()
+        if archive_reused_path:
+            final_archive_path = archive_reused_path
+        else:
+            archive_name = gridpack.get('archive') or 'Nothing.zip'
+            final_archive_path = os.path.join(archive_path, archive_name)
+
+        # Set the Gridpack path for the fragment
+        fragment_vars['pathToProducedGridpack'] = final_archive_path
         for key, value in fragment_vars.items():
             if isinstance(value, list):
                 indentation = ' ' * get_indentation(f'${key}', fragment)

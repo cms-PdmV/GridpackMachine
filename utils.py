@@ -2,10 +2,14 @@ import os
 import json
 import logging
 import subprocess
+import pathlib
+import re
+import datetime
 from os import listdir
 from os.path import isdir
 from os.path import join as path_join
 from connection_wrapper import ConnectionWrapper
+from ssh_executor import SSHExecutor
 from config import Config
 
 
@@ -22,6 +26,8 @@ BRANCHES_CACHE = {}
 CAMPAIGNS_CACHE = {}
 CARDS_CACHE = {}
 TUNES_CACHE = []
+UNABLE_CHECK_FILES = re.compile(r'ls: cannot')
+EMPTY_SPACE = " "
 
 
 def clean_split(string, separator=',', maxsplit=-1):
@@ -202,3 +208,105 @@ def get_indentation(phrase, text):
 
     line = lines[0]
     return len(line) - len(line.lstrip())
+
+
+def check_append_path(root: str, relative: str) -> pathlib.Path:
+    """
+    Check that two provided paths are valid and
+    that they are absolute or relative depending on its case.
+    Returns its concatenation.
+
+    Args:
+        root (str): Root absolute path
+        relative (str): Relative path to be appended.
+    
+    Returns:
+        pathlib.Path: Concatenation of both paths
+
+    Raises:
+        ValueError: If the provided paths are not absolute or relative
+            depending on its case.
+    """
+    relative_path = pathlib.Path(relative)
+    root_path = pathlib.Path(root)
+    if relative_path.is_absolute():
+        raise ValueError(
+            f"Please provide a relative path - Relative path provided: {relative_path}"
+        )
+    if not root_path.is_absolute():
+        raise ValueError(
+            f"Please provide an absolute path - Absolute path provided: {root_path}"
+        )
+    return root_path / relative_path
+
+
+def retrieve_all_files_available(
+    folders: list[pathlib.Path],
+    ssh_session: SSHExecutor
+) -> dict:
+    """
+    For a given group of folders, retrieve all the files available
+    into them, their absolute path and the last modification date.
+    Sort all the elements based on this date.
+
+    Args:
+        folders (list[str]): List of folders to check
+        ssh_session (SSHExecutor): SSH session to a remote host
+            where all the folders are reachable.
+
+    Returns
+        dict: Folder and files available ordered by last modification time
+    """
+    def __parse_stdout(stdout_content: str):
+        lines = [l for l in stdout_content.splitlines() if l]
+        content = []
+        for file_data in lines:
+            data = file_data.split(EMPTY_SPACE)
+            record = (
+                datetime.datetime.fromtimestamp(
+                    int(data[0]),
+                    datetime.timezone.utc
+                ),
+                data[1]
+            )
+            content.append(record)
+        content.sort(key=lambda e: e[0], reverse=True)
+        return content
+
+    result: dict = {}
+    only_files: str = "grep '^[^d|p|total]'"
+    only_date_name: str = "awk '{print $6,$7}'"
+    for folder_metadata in folders:
+        # Retrieve only the date and the name
+        # FIXME: Avoid to include the pattern in the same field as the folder
+        folder_path = str(folder_metadata.parent)
+        regex_pattern = f"^{folder_metadata.name}"
+        file_filter = re.compile(regex_pattern)
+
+        scan_command: str = (
+            f"ls -l --time-style=+%s '{folder_path}' | "
+            f"{only_files} | "
+            f"{only_date_name}"
+        )
+        stdout, stderr, exit_code = ssh_session.execute_command(scan_command)
+        if exit_code != 0 or UNABLE_CHECK_FILES.findall(stderr):
+            continue
+
+        files_data = __parse_stdout(stdout)
+        files_parsed_content = []
+        for file in files_data:
+            file_name = file[1]
+            last_date_unix = file[0]
+            if file_filter.match(file_name):
+                files_content = {}
+                files_content["file_name"] = file_name
+                files_content["file_path"] = check_append_path(
+                    root=folder_path,
+                    relative=file[1]
+                )
+                files_content["last_modification_date"] = last_date_unix
+                files_parsed_content.append(files_content)
+        
+        result[folder_path] = files_parsed_content
+
+    return result
