@@ -116,9 +116,11 @@
       </header>
     </div>
 
+    <!-- Empty container for inter-space -->
     <div class="container" style="padding-top: 76px;">
     </div>
-
+    
+    <!-- Top bar - Control panel -->
     <div class="container mt-4" style="text-align: center;" v-if="user.authorized">
       <button type="button" class="btn btn-success btn-sm elevation-3 ml-1 mr-1" data-toggle="modal" data-target="#createGridpackModal">Create gridpacks</button>
       <button type="button" class="btn btn-info btn-sm elevation-3 ml-1 mr-1" @click="forceTick()">Machine tick</button>
@@ -127,6 +129,23 @@
         <small>Machine tick {{systemInfo.lastTickNice}} ago | Repository refresh {{systemInfo.lastTickRepositoryNice}} ago</small>
       </div>
     </div>
+    <div class="container mt-1" style="text-align: center;" v-if="totalPages >= 0">
+      <div>
+        <small>Seeing Gridpacks: {{currentGridpacks[0] + 1}} to {{currentGridpacks[1]}} | Total Gridpacks after filters: {{totalCurrentGridpacks}}</small>  
+      </div>
+      <div>
+        <button type="button" 
+                  class="btn btn-link" 
+                  @click="previousPage()" 
+                  v-if="currentPage > 0"><<</button>
+        <small>Page {{currentPage + 1}} of {{totalPages + 1}}</small>
+        <button type="button" 
+                  class="btn btn-link" 
+                  @click="nextPage()" 
+                  v-if="currentPage !== totalPages">>></button>
+      </div>
+    </div>
+    <!-- Gridpack table -->
     <table>
       <tr>
         <th>
@@ -171,7 +190,8 @@
           <span class="sort" @click="onSort('last_update')">History</span>
         </th>
       </tr>
-      <tr v-for="gridpack in gridpacks" :key="gridpack._id">
+      <!-- Gridpack elements -->
+      <tr v-for="gridpack in gridpacksInPage" :key="gridpack._id">
         <td>
           <small style="letter-spacing: -1px;">
             {{gridpack._id}}
@@ -333,6 +353,10 @@
                     :disabled="!wizardObjects.length"
                     @click="wizardCreateGridpacks()">Create {{wizardObjects.length > 1 ? (wizardObjects.length + ' gridpacks') : 'gridpack'}}</button>
             <button type="button"
+                    class="btn btn-sm btn-danger"
+                    :disabled="!wizardObjects.length"
+                    @click="wizardCreateApproveGridpacks()">Create and approve {{wizardObjects.length > 1 ? (wizardObjects.length + ' gridpacks') : 'gridpack'}}</button>
+            <button type="button"
                     class="btn btn-sm btn-secondary"
                     data-dismiss="modal"
                     @click="wizardCancel()">Cancel</button>
@@ -352,6 +376,8 @@
         allGridpacks: [],
         gridpacks: [],
         totalGridpacks: 0,
+        currentPage: 0,
+        elementsPerPage: 50,
         wizardObjects: [],
         defaultSortOn: '_id',
         sortOn: undefined,
@@ -362,6 +388,29 @@
           generator: undefined,
           dataset: undefined,
           tune: undefined,
+        },
+      },
+      computed: {
+        totalCurrentGridpacks: function() {
+          return this.gridpacks.length;
+        },
+        totalPages: function() {
+          let pages = Math.floor(this.totalCurrentGridpacks / this.elementsPerPage);
+          const fullPages = this.totalCurrentGridpacks % this.elementsPerPage === 0;
+          pages = fullPages ? pages - 1 : pages;
+          return pages;
+        },
+        currentGridpacks: function() {
+          const startSlice = this.currentPage * this.elementsPerPage;
+          const endSlice = Math.min(
+            this.totalCurrentGridpacks,
+            (this.currentPage + 1) * this.elementsPerPage
+          );
+          return [startSlice, endSlice];
+        },
+        gridpacksInPage: function() {
+          const [startSlice, endSlice] = this.currentGridpacks;
+          return this.gridpacks.slice(startSlice, endSlice);
         },
       },
       created() {
@@ -444,10 +493,93 @@
             }
           });
         },
+        verifyGridpacks: function(gridpacks) {
+          let errors = gridpacks.map((gridpack, idx) => {
+              let index = idx + 1;
+              let rowErrors = [];
+              if (gridpack.campaign == undefined) {
+                rowErrors.push('Please select a campaign in row ' + index);
+              }
+              if (gridpack.generator == undefined) {
+                rowErrors.push('Please select a generator in row ' + index);
+              }
+              if (gridpack.process == undefined) {
+                rowErrors.push('Please select a process in row ' + index);
+              }
+              if (gridpack.dataset == undefined) {
+                rowErrors.push('Please select a dataset in row ' + index);
+              }
+              if (gridpack.genproductions == undefined) {
+                rowErrors.push('Please select a genproductions branch in row ' + index);
+              }
+              gridpack.events = parseInt(gridpack.events);
+              if (gridpack.events <= 0) {
+                rowErrors.push('Please enter a positive number of events in row ' + index);
+              }
+              gridpack.job_cores = parseInt(gridpack.job_cores);
+              if (gridpack.job_cores == undefined || isNaN(gridpack.job_cores)) {
+                rowErrors.push('Please set the number of cores in row ' + index);
+              }
+              gridpack.job_memory = parseInt(gridpack.job_memory);
+              if (gridpack.job_memory == undefined || isNaN(gridpack.job_memory)) {
+                rowErrors.push('Please set the memory for the job in row ' + index);
+              }
+              if (gridpack.job_memory < gridpack.job_cores * 1000) {
+                rowErrors.push(`Please avoid to set the memory less than ${gridpack.job_cores * 1000} MB in row ${index}`);
+              }
+              return rowErrors;
+          });
+          
+          let isThereAnyError = errors.some((errorsPerRow) => errorsPerRow.length !== 0);
+          if (isThereAnyError === false) {
+            return "";
+          }
+          
+          // Reduce the message in just one string
+          let errorHeader = "Validation issues\n\n";
+          let totalErrorMessages = 0;
+          let errorMessage = errors.reduce(
+            (currentReducedMessage, errorRecord) => {
+              totalErrorMessages ++;
+              if (errorRecord.length === 0) {
+                return currentReducedMessage;
+              }
+
+              currentReducedMessage += `Row: ${totalErrorMessages}\n`
+              currentReducedMessage += `============================\n`
+              currentReducedMessage += errorRecord.reduce(
+                (reducedPerRow, errorsPerRow) => {
+                    reducedPerRow += `${errorsPerRow}\n`
+                    return reducedPerRow;
+                }, 
+                ""
+              );
+              currentReducedMessage += `\n`
+              return currentReducedMessage;
+            }, 
+            errorHeader
+          );
+          
+          return errorMessage;
+        },
         createGridpacks: function(gridpacks) {
           const component = this;
           $.ajax({
             url: 'api/create',
+            type: 'PUT',
+            data: JSON.stringify(gridpacks),
+            contentType: 'application/json',
+            success: function(result) {
+              component.getGridpacks();
+            }
+          }).fail(function(data) {
+            alert(data.responseJSON.message)
+          });
+        },
+        createApproveGridpacks: function(gridpacks) {
+          const component = this;
+          $.ajax({
+            url: 'api/create_approve',
             type: 'PUT',
             data: JSON.stringify(gridpacks),
             contentType: 'application/json',
@@ -574,49 +706,23 @@
         },
         wizardCreateGridpacks: function() {
           let index = 1;
-          for (let gridpack of this.wizardObjects) {
-            if (gridpack.campaign == undefined) {
-              alert('Please select a campaign in row ' + index);
-              return;
-            }
-            if (gridpack.generator == undefined) {
-              alert('Please select a generator in row ' + index);
-              return;
-            }
-            if (gridpack.process == undefined) {
-              alert('Please select a process in row ' + index);
-              return;
-            }
-            if (gridpack.dataset == undefined) {
-              alert('Please select a dataset in row ' + index);
-              return;
-            }
-            if (gridpack.genproductions == undefined) {
-              alert('Please select a genproductions branch in row ' + index);
-              return;
-            }
-            gridpack.events = parseInt(gridpack.events);
-            if (gridpack.events <= 0) {
-              alert('Please enter a positive number of events in row ' + index);
-              return;
-            }
-            gridpack.job_cores = parseInt(gridpack.job_cores);
-            if (gridpack.job_cores == undefined || isNaN(gridpack.job_cores)) {
-              alert('Please set the number of cores in row ' + index);
-              return;
-            }
-            gridpack.job_memory = parseInt(gridpack.job_memory);
-            if (gridpack.job_memory == undefined || isNaN(gridpack.job_memory)) {
-              alert('Please set the memory for the job in row ' + index);
-              return;
-            }
-            if (gridpack.job_memory < gridpack.job_cores * 1000) {
-              alert(`Please avoid to set the memory less than ${gridpack.job_cores * 1000} MB in row ${index}`);
-              return;
-            }
-            index++;
+          const errorMessages = this.verifyGridpacks(this.wizardObjects);
+          if (errorMessages !== "") {
+            alert(errorMessages);
+            return;
           }
           this.createGridpacks(this.wizardObjects);
+          $('#createGridpackModal').modal('hide');
+          this.wizardObjects = [];
+        },
+        wizardCreateApproveGridpacks: function() {
+          let index = 1;
+          const errorMessages = this.verifyGridpacks(this.wizardObjects);
+          if (errorMessages !== "") {
+            alert(errorMessages);
+            return;
+          }
+          this.createApproveGridpacks(this.wizardObjects);
           $('#createGridpackModal').modal('hide');
           this.wizardObjects = [];
         },
@@ -653,6 +759,8 @@
         // Search and sort
         onSearch: function() {
           this.gridpacks = this.applySort(this.applyFilters(this.allGridpacks));
+          // Avoid empty pages with the older group of elements
+          this.currentPage = 0;
           this.updateQuery();
         },
         onSort: function(attribute) {
@@ -660,6 +768,14 @@
           this.sortOn = attribute;
           this.gridpacks = this.applySort(this.gridpacks);
           this.updateQuery();
+        },
+        nextPage: function() {
+          const newPage = Math.min(this.currentPage + 1, this.totalPages);
+          this.currentPage = newPage;
+        },
+        previousPage: function() {
+          const newPage = Math.max(this.currentPage - 1, 0);
+          this.currentPage = newPage;
         },
         applyFilters: function(gridpacks) {
           for (let attribute in this.search) {
