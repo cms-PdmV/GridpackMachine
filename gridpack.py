@@ -160,6 +160,15 @@ class Gridpack():
             Gridpack.schema['job_memory']
         )
     
+    def delete_cores_memory(self):
+        """
+        Removes the job cores and memory
+        set by the user if the Gridpack reuses
+        an old one.
+        """
+        self.data.pop('job_cores')
+        self.data.pop('job_memory')
+    
     def get_archive_reused(self):
         return self.data.get("archive_reused", "")
 

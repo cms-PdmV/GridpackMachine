@@ -304,6 +304,7 @@ class Controller():
             gridpack.data['archive'] = str(gridpack_file.name)
             gridpack.set_status('reused')
             gridpack.add_history_entry(f'gridpack reused')
+            gridpack.delete_cores_memory()
             self.database.update_gridpack(gridpack)
             
             # Create a McM request for it
