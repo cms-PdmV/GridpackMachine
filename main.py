@@ -298,6 +298,13 @@ def get_run_card(gridpack_id):
         return output_text({'message': 'Gridpack not found'}, code=404)
     except AssertionError as a:
         return output_text({'message': str(a)}, code=400)
+    except Exception:
+        logging.error(
+            "Unable to retrieve `run_card` for Gridpack: %s",
+            gridpack,
+            exc_info=True
+        )
+        return output_text({'message': 'Unable to retrieve the element'}, code=400)
 
 
 @app.route('/api/get_customize_card/<string:gridpack_id>')
@@ -322,6 +329,13 @@ def get_customize_card(gridpack_id):
         return output_text({'message': 'Gridpack not found'}, code=404)
     except AssertionError as a:
         return output_text({'message': str(a)}, code=400)
+    except Exception:
+        logging.error(
+            "Unable to retrieve `customize_card` for Gridpack: %s",
+            gridpack,
+            exc_info=True
+        )
+        return output_text({'message': 'Unable to retrieve the element'}, code=400)
 
 
 def user_info_dict():
