@@ -69,8 +69,7 @@ class FragmentBuilder():
         fragment_vars['tuneImport'] = import_dict['tune'][tune]
         archive_path = Config.get('gridpack_directory')
         archive_path = gridpack.get_remote_storage_path()
-        archive_path = archive_path.replace('/eos/cms/store/group/phys_generator/cvmfs/gridpacks/',
-                                            '/cvmfs/cms.cern.ch/phys_generator/gridpacks/', )
+
         # Set the final path
         final_archive_path = ''
         archive_reused_path = gridpack.get_archive_reused()
@@ -80,7 +79,13 @@ class FragmentBuilder():
             archive_name = gridpack.get('archive') or 'Nothing.zip'
             final_archive_path = os.path.join(archive_path, archive_name)
 
-        # Set the Gridpack path for the fragment
+        # Set the Gridpack's path for the fragment
+        # Replace the path if CMS GEN production folder is used,
+        # its content is synchronized with /cvmfs.
+        final_archive_path = final_archive_path.replace(
+            '/eos/cms/store/group/phys_generator/cvmfs/gridpacks/',
+            '/cvmfs/cms.cern.ch/phys_generator/gridpacks/'
+        )
         fragment_vars['pathToProducedGridpack'] = final_archive_path
         for key, value in fragment_vars.items():
             if isinstance(value, list):

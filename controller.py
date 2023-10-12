@@ -173,7 +173,14 @@ class Controller():
         self.gridpacks_to_create_requests.append(gridpack_id)
 
     def approve(self, gridpack_id):
-        submit_or_reuse: bool = self.submit_or_reuse_gridpack(gridpack_id)
+        submit_or_reuse: bool | None = self.submit_or_reuse_gridpack(gridpack_id)
+        if submit_or_reuse is None:
+            self.logger.info(
+                'Skip Gridpack %s because there were issues that impede '
+                'reusing old output files',
+                gridpack_id
+            )
+            return 
         if not submit_or_reuse:
             self.logger.info('Checking if Gridpack %s can reuse old artifacts', gridpack_id)
             self.gridpacks_that_reuse_output.append(gridpack_id)
@@ -185,7 +192,7 @@ class Controller():
         self.logger.info('Adding %s to delete list', gridpack_id)
         self.gridpacks_to_delete.append(gridpack_id)
 
-    def submit_or_reuse_gridpack(self, gridpack_id) -> bool:
+    def submit_or_reuse_gridpack(self, gridpack_id):
         """
         Determines if this Gridpack request can reuse 
         the Gridpack results related to old requests or 
@@ -197,9 +204,10 @@ class Controller():
                 and its going to be checked.
 
         Returns:
-            bool: True if it is required to submit a batch job
+            bool | None: True if it is required to submit a batch job
                 to create the Gridpack. False if it is possible
-                to reuse an old one.
+                to reuse an old one. None if it was requested to reuse
+                a Gridpack but there is an error that impedes this.
         """
         gridpack_json: dict = self.database.get_gridpack(gridpack_id)
         gridpack: Gridpack = Gridpack.make(gridpack_json)
@@ -212,12 +220,13 @@ class Controller():
             return False
         except AssertionError as ae:
             self.logger.info(ae)
+            return True
         except ValueError as va:
-            error_message: str = f"Submitting batch job - Errors: {va}"
-            self.logger.error(error_message)
-            gridpack.add_history_entry(f'reuse failed: {va}')
-            self.database.update_gridpack(gridpack)
-        return True
+            self.__process_failed_reuse(
+                gridpack=gridpack,
+                error=va
+            )
+        return None
 
     def reset_gridpack(self, gridpack_id):
         """
@@ -263,17 +272,6 @@ class Controller():
             gridpack_id (str): Gridpack ID.
             ssh_session (SSHExecutor): Session to a remote host.
         """
-        def __process_failed_reuse(error):
-            error_message: str = (
-                f"Unable to reuse Gridpacks - Cause: {error}"
-            )
-            self.logger.error(error_message, exc_info=True)
-            gridpack.set_status('unable to reuse gridpack')
-            gridpack.add_history_entry(f'reuse failed')
-            self.database.update_gridpack(gridpack)
-            self.gridpacks_to_approve.append(gridpack_id)
-
-
         gridpack_json: dict = self.database.get_gridpack(gridpack_id)
         gridpack: Gridpack = Gridpack.make(gridpack_json)
         self.logger.info(
@@ -281,7 +279,6 @@ class Controller():
             gridpack
         )
         try:
-            # FIXME: Avoid to include the pattern in the same field as the folder
             reuse_gridpack_in: pathlib.Path = gridpack.get_reusable_gridpack_path()
             reuse_gridpack_folder: str = str(reuse_gridpack_in.parent)
             possible_gridpacks = retrieve_all_files_available(
@@ -291,7 +288,14 @@ class Controller():
             self.logger.info("Possible Gridpacks to reuse: %s", possible_gridpacks)
             gridpack_options = possible_gridpacks.get(reuse_gridpack_folder, [])
             if not gridpack_options:
-                __process_failed_reuse(error="There are no options to pick from")
+                self.__process_failed_reuse(
+                    gridpack=gridpack,
+                    error=(
+                        "There are no Gridpacks to reuse in the "
+                        f"target folder: {reuse_gridpack_folder} "
+                        f"whose file name complies with the regex: {reuse_gridpack_in.name}"
+                    )
+                )
                 return
             
             # Currently, just take the first, most recent, file
@@ -312,7 +316,31 @@ class Controller():
             self.send_reused_notification(gridpack=gridpack)
 
         except Exception as e:
-            __process_failed_reuse(error=e)
+            self.__process_failed_reuse(
+                gridpack=gridpack,
+                error=e
+            )
+
+    def __process_failed_reuse(
+            self,
+            gridpack: Gridpack, 
+            error: str | Exception
+        ):
+        """
+        In case a Gridpack fails, send an email notification
+        and update its status as failed.
+        """
+        error_message: str = "Unable to reuse Gridpacks - "
+        error_message += f"Cause: {error}" if isinstance(error, str) else f"Error: {error}"
+        self.logger.error(error_message, exc_info=True)
+        gridpack.set_status('failed')
+        gridpack.add_history_entry(f'reuse failed')
+        gridpack.delete_cores_memory()
+        self.database.update_gridpack(gridpack)
+        self.send_failed_reused_notification(
+            gridpack=gridpack,
+            cause=error_message
+        )
 
     def create_request_for_gridpack(self, gridpack_id):
         """
@@ -360,6 +388,58 @@ class Controller():
         gridpack.add_history_entry('force request')
         self.database.update_gridpack(gridpack)
         return None
+    
+    def get_original_gridpack(self, gridpack_id: str):
+        """
+        Returns the requested Gridpack or the information of the Gridpack
+        that submitted the batch job to the create the Gridpack artifact
+        for Gridpacks that reused output from another.
+
+        Args:
+            gridpack_id (str): Gridpack to retrieve the run card.
+        Returns:
+            Gridpack: Gridpack data with the `run_card`
+        Raises:
+            ValueError: If there is no Gridpack linked with the
+                provided ID.
+            AssertionError: If the Gridpack data indicates that it reused
+                output but there was not possible to find the Gridpack
+                that submit the job or if there is more than one Gridpack
+                linked.
+        """
+        gridpack_json = self.database.get_gridpack(gridpack_id)
+        if not gridpack_json:
+            raise ValueError(
+                f"There is no Gridpack linked to the ID: {gridpack_id}"
+            )
+        
+        gridpack: Gridpack = Gridpack.make(gridpack_json)
+        if not gridpack.get_archive_reused():
+            return gridpack
+
+        gridpack_reused_path = pathlib.Path(gridpack.get_archive_reused())
+        linked_gridpacks_data = self.database.get_original_gridpacks(
+            archive=str(gridpack_reused_path.name)
+        )
+
+        if not linked_gridpacks_data:
+            error_message = (
+                "Could not retrieve the data "
+                "for the original Gridpack that "
+                "performed the submission.\n"
+                f"Gridpack ID: {gridpack.get_id()}"
+            )
+            raise AssertionError(error_message)
+        elif len(linked_gridpacks_data) != 1:
+            error_message = (
+                "Fatal: There is more than one original"
+                "Gridpack linked to this one that reused artifacts.\n"
+                f"Gridpack ID: {gridpack.get_id()}" 
+            )
+            raise AssertionError(error_message)
+        
+        original_gridpack: Gridpack = Gridpack.make(linked_gridpacks_data[0])
+        return original_gridpack
 
     def delete_gridpack(self, gridpack_id):
         """
@@ -690,7 +770,10 @@ class Controller():
 
         body = 'Hello,\n\n'
         body += f'Gridpack {gridpack_name} ({gridpack_id}) will reuse artifacts.\n'
-        body += f'Instead of creating a new Gridpack via a batch job. This Gridpack used one that already existed\n'
+        body += (
+            'Instead of creating a new Gridpack via a batch job. '
+            'This Gridpack used one that already existed\n'
+        )
         body += f'Gridpack reused: {gridpack_reused}\n'
         body += f'A request in McM will be created\n'
         body += f'For more details, please see\n'
@@ -702,6 +785,38 @@ class Controller():
         recipients = [f'{user}@cern.ch' for user in gridpack.get_users()]
         emailer = EmailSender(Config.get('ssh_credentials'))
         emailer.send(subject, body, recipients, files)
+
+    def send_failed_reused_notification(
+            self, 
+            gridpack: Gridpack, 
+            cause: str
+        ):
+        """
+        Send an email notification that this gridpack could not 
+        reuse an available one to avoid creating a new one via batch jobs
+        because of errors.
+        """
+        gridpack_dict = gridpack.get_json()
+        campaign = gridpack_dict.get('campaign')
+        generator = gridpack_dict.get('generator')
+        dataset = gridpack_dict.get('dataset')
+        gridpack_id = gridpack.get_id()
+        gridpack_name = f'{campaign} {dataset} {generator}'
+        service_url = Config.get('service_url')
+
+        body = 'Hello,\n\n'
+        body += (
+            f'Gridpack {gridpack_name} ({gridpack_id}) '
+            'could not reuse output artifacts from old Gridpacks and therefore it failed.\n'
+        )
+        body += f'{cause}\n'
+        body += f'For more details, please see\n'
+        body += f'Gridpack job: {service_url}?_id={gridpack_id}\n'
+
+        subject = f'Gridpack {gridpack_name} failed to reuse artifacts from another Gridpack'
+        recipients = [f'{user}@cern.ch' for user in gridpack.get_users()]
+        emailer = EmailSender(Config.get('ssh_credentials'))
+        emailer.send(subject, body, recipients)
 
     def send_failed_notification(self, gridpack, files=None):
         """

@@ -210,6 +210,29 @@ def get_indentation(phrase, text):
     return len(line) - len(line.lstrip())
 
 
+def include_gridpack_ids(
+    gridpack_id: str, 
+    effective_gridpack_id: str,
+    content: str
+):
+    """
+    For content like text files, include the Gridpack ID
+    that is related to it.
+    """
+    gridpack_label: str = (
+        f"# Gridpack that reused this artifact: {gridpack_id}"
+        if gridpack_id != effective_gridpack_id
+        else
+        ""
+    )
+    labeled_content: str = f"# Related to Gridpack ID: {effective_gridpack_id}\n"
+    if gridpack_label:
+        labeled_content += f"{gridpack_label}\n"
+    labeled_content += "\n"
+    labeled_content += content
+
+    return labeled_content
+
 def check_append_path(root: str, relative: str) -> pathlib.Path:
     """
     Check that two provided paths are valid and
@@ -278,7 +301,6 @@ def retrieve_all_files_available(
     only_date_name: str = "awk '{print $6,$7}'"
     for folder_metadata in folders:
         # Retrieve only the date and the name
-        # FIXME: Avoid to include the pattern in the same field as the folder
         folder_path = str(folder_metadata.parent)
         regex_pattern = f"^{folder_metadata.name}"
         file_filter = re.compile(regex_pattern)

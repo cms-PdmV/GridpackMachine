@@ -130,3 +130,26 @@ class Database:
         """
         gridpacks = self.gridpacks.find({'condor_status': status})
         return list(gridpacks)
+    
+    def get_original_gridpacks(self, archive):
+        """
+        Get list of gridpacks that initially submit a batch
+        job to create this artifact.
+
+        Args:
+            archive (str): Name of the output file related to
+                a Gridpack.
+        Returns:
+            list: List of Gridpack that include this output file
+                and the field `archive_reused` is empty or doesn't
+                exists.
+        """
+        query = {
+            "archive": archive,
+            "$or": [
+                { "archive_reused": "" },
+                { "archive_reused": {"$exists": False} }
+            ]
+        }
+        gridpacks, _ = self.get_gridpacks(query_dict=query)
+        return gridpacks

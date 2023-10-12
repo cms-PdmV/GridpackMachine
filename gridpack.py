@@ -33,7 +33,9 @@ class Gridpack():
         'status': '',
         'condor_status': '',
         'condor_id': 0,
+        # Stores only the file name created
         'archive': '',
+        # Stores the absolute path to the reused file
         'archive_reused': '',
         'dataset_name': '',
         'history': [],
