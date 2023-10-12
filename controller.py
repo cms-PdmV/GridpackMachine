@@ -4,6 +4,7 @@ import os
 import zipfile
 import pathlib
 import traceback
+from typing import Optional, Union
 from database import Database
 from gridpack import Gridpack
 from email_sender import EmailSender
@@ -173,7 +174,7 @@ class Controller():
         self.gridpacks_to_create_requests.append(gridpack_id)
 
     def approve(self, gridpack_id):
-        submit_or_reuse: bool | None = self.submit_or_reuse_gridpack(gridpack_id)
+        submit_or_reuse: Optional[bool] = self.submit_or_reuse_gridpack(gridpack_id)
         if submit_or_reuse is None:
             self.logger.info(
                 'Skip Gridpack %s because there were issues that impede '
@@ -324,7 +325,7 @@ class Controller():
     def __process_failed_reuse(
             self,
             gridpack: Gridpack, 
-            error: str | Exception
+            error: Union[str, Exception]
         ):
         """
         In case a Gridpack fails, send an email notification
