@@ -43,7 +43,7 @@ class PowhegGridpack(Gridpack):
 
     def prepare_input_card(self):
         """
-        Get run card and cusomize card, glue them together into input card and write it to job files dir
+        Get run card and customize card, glue them together into input card and write it to job files dir
         """
         job_files_path = self.get_job_files_path()
         output_file_name = os.path.join(job_files_path, 'powheg.input')
