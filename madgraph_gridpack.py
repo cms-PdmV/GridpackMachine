@@ -21,13 +21,13 @@ class MadgraphGridpack(Gridpack):
     def get_proc_card(self):
         """
         Read proc card
-        Glue  madspin card if it exists
+        Glue madspin card if it exists
         """
         if glob.glob(f'{cards_path}/*_proc_card.dat'):
             with open(f'{cards_path}/*_proc_card.dat') as input_file:
                 proc_card = input_file.read()
         else:
-            raise Exception(f'Could not find {path} as hadronizer')
+            raise Exception(f'Could not find {cards_path} as process card')
 
         if glob.glob(f'{cards_path}/*_madspin_card.dat'):
             with open(f'{cards_path}/*_madpsin_card.dat') as input_file:
