@@ -24,7 +24,7 @@ class PowhegGridpack(Gridpack):
 
         return run_card + '\n\n'
 
-    def get_customize_card2(self)
+    def get_customize_card(self)
         """
         Get cards from "ModelParams" directory and customize them (customize card)
         """
