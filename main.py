@@ -261,7 +261,7 @@ def get_gridpacks():
 @app.route('/api/get_run_card/<string:gridpack_id>')
 def get_proc_card(gridpack_id):
     """
-    API to get gridpack's run card
+    API to get gridpack's proc card
     """
     database = Database()
     gridpack_json = database.get_gridpack(gridpack_id)
