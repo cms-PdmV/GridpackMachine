@@ -22,7 +22,7 @@ class PowhegGridpack(Gridpack):
                                        dataset_dict.get('template_user', []),
                                        template_vars)
 
-        return run_card + '\n\n'
+        return run_card
 
     def get_customize_card(self)
         """
@@ -47,7 +47,7 @@ class PowhegGridpack(Gridpack):
         """
         job_files_path = self.get_job_files_path()
         output_file_name = os.path.join(job_files_path, 'powheg.input')
-        run_card = self.get_run_card() + self.get_customize_card()
+        run_card = self.get_run_card() + '\n\n\n\n' + self.get_customize_card()
         self.logger.debug('Writing customized run card %s', output_file_name)
         self.logger.debug(run_card)
         with open(output_file_name, 'w') as output_file:
