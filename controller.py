@@ -431,15 +431,18 @@ class Controller():
                 f"Gridpack ID: {gridpack.get_id()}"
             )
             raise AssertionError(error_message)
-        elif len(linked_gridpacks_data) != 1:
+        
+        linked_gridpacks = [Gridpack.make(g) for g in linked_gridpacks_data]
+        if len(linked_gridpacks_data) != 1:
             error_message = (
-                "Fatal: There is more than one original"
-                "Gridpack linked to this one that reused artifacts.\n"
-                f"Gridpack ID: {gridpack.get_id()}" 
+                "Fatal: There is more than one original "
+                "Gridpack linked to this one that reused artifacts. "
+                f"Gridpack ID: {gridpack.get_id()} - " 
+                f"Possible parents: {', '.join([g.get_id() for g in linked_gridpacks])}"
             )
             raise AssertionError(error_message)
         
-        original_gridpack: Gridpack = Gridpack.make(linked_gridpacks_data[0])
+        original_gridpack: Gridpack = linked_gridpacks[0]
         return original_gridpack
 
     def delete_gridpack(self, gridpack_id):
