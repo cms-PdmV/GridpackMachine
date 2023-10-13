@@ -8,7 +8,7 @@ class MadgraphGridpack(Gridpack):
 
     def prepare_default_card(self):
         """
-        Copy default cards to local directory
+        Copy default cards to local directory : proc_card.dat and madspin_card.dat
         """
         cards_path = self.get_cards_path()
         job_files_path = self.get_job_files_path()
@@ -16,6 +16,26 @@ class MadgraphGridpack(Gridpack):
         os.system(f'cp {cards_path}/*.dat {job_files_path}')
         if glob.glob(f'{cards_path}/*_cuts.f'):
             os.system(f'cp {cards_path}/*_cuts.f {job_files_path}')
+
+
+    def get_proc_card(self):
+        """
+        Read proc card
+        Glue madspin card if it exists
+        """
+        if glob.glob(f'{cards_path}/*_proc_card.dat'):
+            with open(f'{cards_path}/*_proc_card.dat') as input_file:
+                proc_card = input_file.read()
+        else:
+            raise Exception(f'Could not find {cards_path} as process card')
+
+        if glob.glob(f'{cards_path}/*_madspin_card.dat'):
+            with open(f'{cards_path}/*_madpsin_card.dat') as input_file:
+                proc_card += '\n\n\n\n\n\n#### madspin_card.dat\n'
+                proc_card += input_file.read()
+
+        return proc_card
+ 
 
     def get_run_card(self):
         """
