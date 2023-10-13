@@ -31,9 +31,9 @@ class MadgraphGridpack(Gridpack):
 
         if glob.glob(f'{cards_path}/*_madspin_card.dat'):
             with open(f'{cards_path}/*_madpsin_card.dat') as input_file:
-                madspin_card = input_file.read()
+                proc_card += '\n\n\n\n' + input_file.read()
 
-        return proc_card + '\n\n\n\n' + madspin_card
+        return proc_card
  
 
     def get_run_card(self):
