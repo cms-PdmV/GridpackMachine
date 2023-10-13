@@ -258,7 +258,7 @@ def get_gridpacks():
     return output_text([gridpacks, count])
 
 
-@app.route('/api/get_run_card/<string:gridpack_id>')
+@app.route('/api/get_proc_card/<string:gridpack_id>')
 def get_proc_card(gridpack_id):
     """
     API to get gridpack's proc card
