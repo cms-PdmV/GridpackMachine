@@ -258,10 +258,10 @@ def get_gridpacks():
     return output_text([gridpacks, count])
 
 
-@app.route('/api/get_fragment/<string:gridpack_id>')
-def get_fragment(gridpack_id):
+@app.route('/api/get_run_card/<string:gridpack_id>')
+def get_proc_card(gridpack_id):
     """
-    API to get gridpack's fragment
+    API to get gridpack's run card
     """
     database = Database()
     gridpack_json = database.get_gridpack(gridpack_id)
@@ -269,10 +269,8 @@ def get_fragment(gridpack_id):
         return output_text({'message': 'Gridpack not found'}, code=404)
 
     gridpack = Gridpack.make(gridpack_json)
-    fragment_builder = FragmentBuilder()
-    fragment = fragment_builder.build_fragment(gridpack)
-
-    return output_text(fragment, headers={'Content-Type': 'text/plain'})
+    content = gridpack.get_proc_card()
+    return output_text(content, headers={'Content-Type': 'text/plain'})
 
 
 @app.route('/api/get_run_card/<string:gridpack_id>')
@@ -303,6 +301,23 @@ def get_customize_card(gridpack_id):
     gridpack = Gridpack.make(gridpack_json)
     content = gridpack.get_customize_card()
     return output_text(content, headers={'Content-Type': 'text/plain'})
+
+
+@app.route('/api/get_fragment/<string:gridpack_id>')
+def get_fragment(gridpack_id):
+    """
+    API to get gridpack's fragment
+    """
+    database = Database()
+    gridpack_json = database.get_gridpack(gridpack_id)
+    if not gridpack_json:
+        return output_text({'message': 'Gridpack not found'}, code=404)
+
+    gridpack = Gridpack.make(gridpack_json)
+    fragment_builder = FragmentBuilder()
+    fragment = fragment_builder.build_fragment(gridpack)
+
+    return output_text(fragment, headers={'Content-Type': 'text/plain'})
 
 
 def user_info_dict():
