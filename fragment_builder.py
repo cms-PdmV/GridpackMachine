@@ -15,7 +15,11 @@ class FragmentBuilder():
         self.fragments_path = os.path.join(files_dir, 'Fragments')
         self.imports_path = os.path.join(self.fragments_path, 'imports.json')
 
-    def build_fragment(self, gridpack):
+    def build_fragment(
+        self, 
+        gridpack,
+        effective_gridpack_file: str = ""
+    ):
         dataset_dict = gridpack.get_dataset_dict()
         file_list = dataset_dict.get('fragment', [])
         if isinstance(file_list, str):
@@ -29,7 +33,7 @@ class FragmentBuilder():
 
             fragment += contents + '\n\n'
 
-        fragment = self.fragment_replace(fragment, gridpack)
+        fragment = self.fragment_replace(fragment, gridpack, effective_gridpack_file)
         return fragment
 
     def get_external_lhe_producer(self):
@@ -54,7 +58,12 @@ class FragmentBuilder():
 
         return '%s\n' % (contents.strip())  # Add newline to the end of the contents
 
-    def fragment_replace(self, fragment, gridpack: Gridpack):
+    def fragment_replace(
+        self, 
+        fragment, 
+        gridpack: Gridpack, 
+        effective_gridpack_file: str = ""
+    ):
         with open(self.imports_path) as input_file:
             import_dict = json.load(input_file)
 
@@ -72,9 +81,8 @@ class FragmentBuilder():
 
         # Set the final path
         final_archive_path = ''
-        archive_reused_path = gridpack.get_archive_reused()
-        if archive_reused_path:
-            final_archive_path = archive_reused_path
+        if effective_gridpack_file:
+            final_archive_path = effective_gridpack_file
         else:
             archive_name = gridpack.get('archive') or 'Nothing.zip'
             final_archive_path = os.path.join(archive_path, archive_name)

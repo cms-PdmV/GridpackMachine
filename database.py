@@ -6,6 +6,7 @@ import time
 import json
 import os
 from utils import clean_split
+from typing import Optional
 from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError
 
@@ -131,25 +132,34 @@ class Database:
         gridpacks = self.gridpacks.find({'condor_status': status})
         return list(gridpacks)
     
-    def get_original_gridpacks(self, archive):
+    def get_gridpacks_by_archive(
+        self, 
+        archive: str,
+        campaign: str,
+        generator: str,
+        process: str
+    ):
         """
         Get list of gridpacks that initially submit a batch
-        job to create this artifact.
+        job to create the requested artifact.
 
         Args:
             archive (str): Name of the output file related to
                 a Gridpack.
+            campaign (str): Name of the campaign related to the
+                desired Gridpacks.
+            generator (str | None): Generator related with the 
+                desired Gridpacks.
+            process (str | None): Process related with the desired
+                Gridpacks.
         Returns:
-            list: List of Gridpack that include this output file
-                and the field `archive_reused` is empty or doesn't
-                exists.
+            list: List of Gridpack that include this output file.
         """
         query = {
             "archive": archive,
-            "$or": [
-                { "archive_reused": "" },
-                { "archive_reused": {"$exists": False} }
-            ]
+            "campaign": campaign,
+            "generator": generator,
+            "process": process
         }
         gridpacks, _ = self.get_gridpacks(query_dict=query)
         return gridpacks

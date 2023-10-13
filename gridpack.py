@@ -35,8 +35,10 @@ class Gridpack():
         'condor_id': 0,
         # Stores only the file name created
         'archive': '',
-        # Stores the absolute path to the reused file
-        'archive_reused': '',
+        # Stores the absolute path
+        'archive_absolute': '',
+        # ID for the Gridpack reused to create this
+        'gridpack_reused': '',
         'dataset_name': '',
         'history': [],
         'prepid': '',
@@ -121,7 +123,7 @@ class Gridpack():
     def reset(self):
         self.set_status('new')
         self.data['archive'] = ''
-        self.data['archive_reused'] = ''
+        self.data['gridpack_reused'] = ''
         self.data['dataset_name'] = self.get_dataset_name()
         self.set_condor_status('')
         self.set_condor_id(0)
@@ -171,8 +173,32 @@ class Gridpack():
         self.data.pop('job_cores')
         self.data.pop('job_memory')
     
-    def get_archive_reused(self):
-        return self.data.get("archive_reused", "")
+    def get_gridpack_reused(self):
+        """
+        If this Gridpack is created based on another
+        return its ID.
+        """
+        return self.data.get("gridpack_reused", "")
+    
+    def get_absolute_path(self):
+        """
+        Return the absolute path to the output
+        Gridpack file.
+        """
+        absolute_path: str = self.data.get("archive_absolute", "")
+        archive_name: str = self.get("archive")
+        if archive_name and not absolute_path:
+            # Set the absolute path 
+            # for the first time based on the produced filename.
+            absolute_path = str(
+                check_append_path(
+                    root=self.get_remote_storage_path(), 
+                    relative=archive_name
+                )
+            )
+            self.data["archive_absolute"] = absolute_path
+
+        return absolute_path
 
     def set_condor_id(self, condor_id):
         """
@@ -323,8 +349,8 @@ class Gridpack():
     
     def get_reusable_gridpack_path(self) -> pathlib.Path:
         """
-        Retrieves the folder path of the old Gridpack 
-        intended to reuse for the current one.
+        Retrieves the folder path of the potential 
+        old Gridpack intended to reuse for the current one.
 
         Returns:
             str: Gridpack path to reuse

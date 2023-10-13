@@ -270,8 +270,7 @@ def get_fragment(gridpack_id):
         return output_text({'message': 'Gridpack not found'}, code=404)
 
     gridpack = Gridpack.make(gridpack_json)
-    fragment_builder = FragmentBuilder()
-    fragment = fragment_builder.build_fragment(gridpack)
+    fragment = controller.get_fragment(gridpack)
 
     return output_text(fragment, headers={'Content-Type': 'text/plain'})
 

@@ -286,26 +286,43 @@ class Controller():
                 folders=[reuse_gridpack_in],
                 ssh_session=ssh_session
             )
-            self.logger.info("Possible Gridpacks to reuse: %s", possible_gridpacks)
+            self.logger.info("Possible Gridpack files to reuse: %s", possible_gridpacks)
             gridpack_options = possible_gridpacks.get(reuse_gridpack_folder, [])
             if not gridpack_options:
-                self.__process_failed_reuse(
-                    gridpack=gridpack,
-                    error=(
-                        "There are no Gridpacks to reuse in the "
-                        f"target folder: {reuse_gridpack_folder} "
-                        f"whose file name complies with the regex: {reuse_gridpack_in.name}"
-                    )
+                cause = (
+                    "There are no Gridpacks to reuse in the "
+                    f"target folder: {reuse_gridpack_folder} "
+                    f"whose file name complies with the regex: {reuse_gridpack_in.name}"
                 )
-                return
+                raise AssertionError(cause)
             
             # Currently, just take the first, most recent, file
             gridpack_file_metadata: dict = gridpack_options[0]
             gridpack_file: pathlib.Path = gridpack_file_metadata.get("file_path")
             
+            # Find the Gridpack related to the output file
+            requested_archive: str = gridpack_file.name
+            requested_campaign: str = gridpack.get("campaign")
+            requested_generator: str = gridpack.get("generator")
+            requested_process: str = reuse_gridpack_in.parent.name
+            
+            related_gridpacks = self.database.get_gridpacks_by_archive(
+                archive=requested_archive,
+                campaign=requested_campaign,
+                generator=requested_generator,
+                process=requested_process
+            )
+            if not related_gridpacks:
+                cause = (
+                    "Could not find the parent Gridpack that create the "
+                    f"output file: {gridpack_file}"
+                )
+                raise AssertionError(cause)
+
             # Set the gridpack artifact
             # Set the archive name just as a reference for the table
-            gridpack.data['archive_reused'] = str(gridpack_file)
+            parent_gridpack: Gridpack = Gridpack.make(related_gridpacks[0])
+            gridpack.data['gridpack_reused'] = parent_gridpack.get_id()
             gridpack.data['archive'] = str(gridpack_file.name)
             gridpack.set_status('reused')
             gridpack.add_history_entry(f'gridpack reused')
@@ -399,7 +416,7 @@ class Controller():
         Args:
             gridpack_id (str): Gridpack to retrieve the run card.
         Returns:
-            Gridpack: Gridpack data with the `run_card`
+            Gridpack: Requested gridpack or its parent.
         Raises:
             ValueError: If there is no Gridpack linked with the
                 provided ID.
@@ -415,15 +432,13 @@ class Controller():
             )
         
         gridpack: Gridpack = Gridpack.make(gridpack_json)
-        if not gridpack.get_archive_reused():
+        original_id: str = gridpack.get_gridpack_reused()
+        if not original_id:
             return gridpack
 
-        gridpack_reused_path = pathlib.Path(gridpack.get_archive_reused())
-        linked_gridpacks_data = self.database.get_original_gridpacks(
-            archive=str(gridpack_reused_path.name)
-        )
-
-        if not linked_gridpacks_data:
+        # This Gridpacks reuses output from another
+        original_gridpack_json = self.database.get_gridpack(original_id)
+        if not original_gridpack_json:
             error_message = (
                 "Could not retrieve the data "
                 "for the original Gridpack that "
@@ -432,17 +447,7 @@ class Controller():
             )
             raise AssertionError(error_message)
         
-        linked_gridpacks = [Gridpack.make(g) for g in linked_gridpacks_data]
-        if len(linked_gridpacks_data) != 1:
-            error_message = (
-                "Fatal: There is more than one original "
-                "Gridpack linked to this one that reused artifacts. "
-                f"Gridpack ID: {gridpack.get_id()} - " 
-                f"Possible parents: {', '.join([g.get_id() for g in linked_gridpacks])}"
-            )
-            raise AssertionError(error_message)
-        
-        original_gridpack: Gridpack = linked_gridpacks[0]
+        original_gridpack: Gridpack = Gridpack.make(original_gridpack_json)
         return original_gridpack
 
     def delete_gridpack(self, gridpack_id):
@@ -457,6 +462,23 @@ class Controller():
         self.terminate_gridpack(gridpack)
         self.database.delete_gridpack(gridpack)
         gridpack.rmdir()
+
+    def get_fragment(self, gridpack: Gridpack):
+        """
+        Retrieve the fragment for a Gridpack.
+        In case the Gridpack reused the output from another
+        its output file will be used to build the current
+        fragment.
+        """
+        original_id: str = gridpack.get_gridpack_reused()
+        if not original_id:
+            return FragmentBuilder().build_fragment(gridpack=gridpack)
+        
+        original_gridpack: Gridpack = self.get_original_gridpack(original_id)
+        return FragmentBuilder().build_fragment(
+            gridpack=gridpack, 
+            effective_gridpack_file=original_gridpack.get_absolute_path()
+        )
 
     def terminate_gridpack(self, gridpack):
         """
@@ -675,7 +697,7 @@ class Controller():
         remote_directory = f'{remote_directory_base}/{gridpack_id}'
         tickets_host = Config.get('tickets_host')
         ssh_credentials = Config.get('ssh_credentials')
-        fragment = FragmentBuilder().build_fragment(gridpack)
+        fragment = self.get_fragment(gridpack)
         chain = gridpack.get_campaign_dict().get('chain')
         dataset_name = gridpack.get('dataset_name')
         events = gridpack.get('events')
@@ -769,7 +791,7 @@ class Controller():
         dataset = gridpack_dict.get('dataset')
         gridpack_id = gridpack.get_id()
         gridpack_name = f'{campaign} {dataset} {generator}'
-        gridpack_reused = gridpack.get_archive_reused()
+        gridpack_reused = self.get_original_gridpack(gridpack.get_id())
         service_url = Config.get('service_url')
 
         body = 'Hello,\n\n'
@@ -778,7 +800,7 @@ class Controller():
             'Instead of creating a new Gridpack via a batch job. '
             'This Gridpack used one that already existed\n'
         )
-        body += f'Gridpack reused: {gridpack_reused}\n'
+        body += f'Gridpack reused: {gridpack_reused.get_absolute_path()}\n'
         body += f'A request in McM will be created\n'
         body += f'For more details, please see\n'
         body += f'Gridpack job: {service_url}?_id={gridpack_id}\n'
