@@ -6,7 +6,12 @@ import json
 import time
 from copy import deepcopy
 from config import Config
-from utils import get_available_campaigns, get_available_cards, get_git_branches
+from utils import (
+    get_available_campaigns, 
+    get_available_cards, 
+    get_git_branches,
+    check_append_path
+)
 from user import User
 
 
@@ -28,7 +33,12 @@ class Gridpack():
         'status': '',
         'condor_status': '',
         'condor_id': 0,
+        # Stores only the file name created
         'archive': '',
+        # Stores the absolute path
+        'archive_absolute': '',
+        # ID for the Gridpack reused to create this
+        'gridpack_reused': '',
         'dataset_name': '',
         'history': [],
         'prepid': '',
@@ -113,6 +123,7 @@ class Gridpack():
     def reset(self):
         self.set_status('new')
         self.data['archive'] = ''
+        self.data['gridpack_reused'] = ''
         self.data['dataset_name'] = self.get_dataset_name()
         self.set_condor_status('')
         self.set_condor_id(0)
@@ -152,6 +163,42 @@ class Gridpack():
             'job_memory',
             Gridpack.schema['job_memory']
         )
+    
+    def delete_cores_memory(self):
+        """
+        Removes the job cores and memory
+        set by the user if the Gridpack reuses
+        an old one.
+        """
+        self.data.pop('job_cores')
+        self.data.pop('job_memory')
+    
+    def get_gridpack_reused(self):
+        """
+        If this Gridpack is created based on another
+        return its ID.
+        """
+        return self.data.get("gridpack_reused", "")
+    
+    def get_absolute_path(self):
+        """
+        Return the absolute path to the output
+        Gridpack file.
+        """
+        absolute_path: str = self.data.get("archive_absolute", "")
+        archive_name: str = self.get("archive")
+        if archive_name and not absolute_path:
+            # Set the absolute path 
+            # for the first time based on the produced filename.
+            absolute_path = str(
+                check_append_path(
+                    root=self.get_remote_storage_path(), 
+                    relative=archive_name
+                )
+            )
+            self.data["archive_absolute"] = absolute_path
+
+        return absolute_path
 
     def set_condor_id(self, condor_id):
         """
@@ -254,6 +301,36 @@ class Gridpack():
         job_files = os.path.join(local_dir, 'input_files')
         return job_files
 
+    def __get_remote_storage_folder(
+            self, 
+            include_until: int = 3
+        ) -> str:
+        """
+        Retrieves the remote storage path where Gridpacks are stored.
+        For production environments, Gridpacks will be stored into
+        GEN group folder in /eos/.
+        Return the complete path including the campaign, generator or
+        process as requested.
+
+        Args:
+            include_until (int): Allows to return location of parent elements such as
+                campaign, generator, process or even the root storage folder.
+        Returns:
+            str: Remote storage path
+        """
+        gridpack_directory: str = Config.get("gridpack_directory")
+        if not Config.get("dev"):
+            gridpack_directory = "/eos/cms/store/group/phys_generator/cvmfs/gridpacks/PdmV/"
+        
+        # Include the subpath
+        subpath_elements = [
+            self.get("campaign"),
+            self.get("generator"),
+            self.get("process")
+        ]
+        subpath: str = "/".join(subpath_elements[0:include_until])
+        return str(check_append_path(root=gridpack_directory, relative=subpath))
+
     def get_remote_storage_path(self) -> str:
         """
         Retrieves the remote storage path for saving the resulting
@@ -264,18 +341,44 @@ class Gridpack():
             str: Gridpack remote storage path
         """
         store_into_subfolders: bool = self.data.get("store_into_subfolders", False)
-        gridpack_directory: str = Config.get("gridpack_directory")
-        if not Config.get("dev"):
-            if store_into_subfolders:
-                gridpack_directory = (
-                    f'/eos/cms/store/group/phys_generator/cvmfs/gridpacks/PdmV/{self.get("campaign")}'
-                    f'/{self.get("generator")}/{self.get("process")}'
-                )
-            else:
-                gridpack_directory = (
-                    f'/eos/cms/store/group/phys_generator/cvmfs/gridpacks/PdmV/{self.get("campaign")}'
-                )
-        return gridpack_directory
+        return (
+            self.__get_remote_storage_folder() 
+            if store_into_subfolders 
+            else self.__get_remote_storage_folder(include_until=1)
+        )
+    
+    def get_reusable_gridpack_path(self) -> pathlib.Path:
+        """
+        Retrieves the folder path of the potential 
+        old Gridpack intended to reuse for the current one.
+
+        Returns:
+            str: Gridpack path to reuse
+        
+        Raises:
+            AssertionError: If it is not intended to reuse
+                an old Gridpack.
+            ValueError: If path for the reusable Gridpack
+                is not defined.
+        """
+        dataset_dict: dict = self.get_dataset_dict()
+        reuse_gridpack: bool = dataset_dict.get('gridpack_submit') == False
+        if not reuse_gridpack:
+            raise AssertionError("It is not intended to reuse a Gridpack")
+
+        process_and_file = dataset_dict.get('gridpack_path')
+        if not process_and_file:
+            raise ValueError("Gridpack path to reuse was not provided")
+        
+        try:
+            folder_path = check_append_path(
+                # Include until generator
+                root=self.__get_remote_storage_folder(include_until=2),
+                relative=process_and_file
+            )
+            return folder_path
+        except (TypeError, ValueError) as pe:
+            raise ValueError(f"Error parsing path: {pe}")
 
     def mkdir(self):
         """

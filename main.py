@@ -14,6 +14,7 @@ from gridpack import Gridpack
 from database import Database
 from config import Config
 from user import User
+from utils import include_gridpack_ids
 
 
 app = Flask(__name__,
@@ -269,8 +270,7 @@ def get_fragment(gridpack_id):
         return output_text({'message': 'Gridpack not found'}, code=404)
 
     gridpack = Gridpack.make(gridpack_json)
-    fragment_builder = FragmentBuilder()
-    fragment = fragment_builder.build_fragment(gridpack)
+    fragment = controller.get_fragment(gridpack)
 
     return output_text(fragment, headers={'Content-Type': 'text/plain'})
 
@@ -280,14 +280,30 @@ def get_run_card(gridpack_id):
     """
     API to get gridpack's run card
     """
-    database = Database()
-    gridpack_json = database.get_gridpack(gridpack_id)
-    if not gridpack_json:
+    try:
+        gridpack: Gridpack = controller.get_original_gridpack(
+            gridpack_id=gridpack_id
+        )
+        content = include_gridpack_ids(
+            gridpack_id=gridpack_id,
+            effective_gridpack_id=gridpack.get_id(),
+            content=gridpack.get_run_card()
+        )
+        return output_text(
+            content, 
+            headers={'Content-Type': 'text/plain'}
+        )
+    except ValueError:
         return output_text({'message': 'Gridpack not found'}, code=404)
-
-    gridpack = Gridpack.make(gridpack_json)
-    content = gridpack.get_run_card()
-    return output_text(content, headers={'Content-Type': 'text/plain'})
+    except AssertionError as a:
+        return output_text({'message': str(a)}, code=400)
+    except Exception:
+        logging.error(
+            "Unable to retrieve `run_card` for Gridpack: %s",
+            gridpack,
+            exc_info=True
+        )
+        return output_text({'message': 'Unable to retrieve the element'}, code=400)
 
 
 @app.route('/api/get_customize_card/<string:gridpack_id>')
@@ -295,14 +311,30 @@ def get_customize_card(gridpack_id):
     """
     API to get gridpack's fragment
     """
-    database = Database()
-    gridpack_json = database.get_gridpack(gridpack_id)
-    if not gridpack_json:
+    try:
+        gridpack: Gridpack = controller.get_original_gridpack(
+            gridpack_id=gridpack_id
+        )
+        content = include_gridpack_ids(
+            gridpack_id=gridpack_id,
+            effective_gridpack_id=gridpack.get_id(),
+            content=gridpack.get_customize_card()
+        )
+        return output_text(
+            content, 
+            headers={'Content-Type': 'text/plain'}
+        )
+    except ValueError:
         return output_text({'message': 'Gridpack not found'}, code=404)
-
-    gridpack = Gridpack.make(gridpack_json)
-    content = gridpack.get_customize_card()
-    return output_text(content, headers={'Content-Type': 'text/plain'})
+    except AssertionError as a:
+        return output_text({'message': str(a)}, code=400)
+    except Exception:
+        logging.error(
+            "Unable to retrieve `customize_card` for Gridpack: %s",
+            gridpack,
+            exc_info=True
+        )
+        return output_text({'message': 'Unable to retrieve the element'}, code=400)
 
 
 def user_info_dict():

@@ -15,7 +15,11 @@ class FragmentBuilder():
         self.fragments_path = os.path.join(files_dir, 'Fragments')
         self.imports_path = os.path.join(self.fragments_path, 'imports.json')
 
-    def build_fragment(self, gridpack):
+    def build_fragment(
+        self, 
+        gridpack,
+        effective_gridpack_file: str = ""
+    ):
         dataset_dict = gridpack.get_dataset_dict()
         file_list = dataset_dict.get('fragment', [])
         if isinstance(file_list, str):
@@ -29,7 +33,7 @@ class FragmentBuilder():
 
             fragment += contents + '\n\n'
 
-        fragment = self.fragment_replace(fragment, gridpack)
+        fragment = self.fragment_replace(fragment, gridpack, effective_gridpack_file)
         return fragment
 
     def get_external_lhe_producer(self):
@@ -54,7 +58,12 @@ class FragmentBuilder():
 
         return '%s\n' % (contents.strip())  # Add newline to the end of the contents
 
-    def fragment_replace(self, fragment, gridpack: Gridpack):
+    def fragment_replace(
+        self, 
+        fragment, 
+        gridpack: Gridpack, 
+        effective_gridpack_file: str = ""
+    ):
         with open(self.imports_path) as input_file:
             import_dict = json.load(input_file)
 
@@ -69,10 +78,23 @@ class FragmentBuilder():
         fragment_vars['tuneImport'] = import_dict['tune'][tune]
         archive_path = Config.get('gridpack_directory')
         archive_path = gridpack.get_remote_storage_path()
-        archive_path = archive_path.replace('/eos/cms/store/group/phys_generator/cvmfs/gridpacks/',
-                                            '/cvmfs/cms.cern.ch/phys_generator/gridpacks/', )
-        archive_name = gridpack.get('archive') or 'Nothing.zip'
-        fragment_vars['pathToProducedGridpack'] = os.path.join(archive_path, archive_name)
+
+        # Set the final path
+        final_archive_path = ''
+        if effective_gridpack_file:
+            final_archive_path = effective_gridpack_file
+        else:
+            archive_name = gridpack.get('archive') or 'Nothing.zip'
+            final_archive_path = os.path.join(archive_path, archive_name)
+
+        # Set the Gridpack's path for the fragment
+        # Replace the path if CMS GEN production folder is used,
+        # its content is synchronized with /cvmfs.
+        final_archive_path = final_archive_path.replace(
+            '/eos/cms/store/group/phys_generator/cvmfs/gridpacks/',
+            '/cvmfs/cms.cern.ch/phys_generator/gridpacks/'
+        )
+        fragment_vars['pathToProducedGridpack'] = final_archive_path
         for key, value in fragment_vars.items():
             if isinstance(value, list):
                 indentation = ' ' * get_indentation(f'${key}', fragment)
