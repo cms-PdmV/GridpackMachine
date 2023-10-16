@@ -371,8 +371,8 @@ class Controller():
 
         gridpack = Gridpack.make(gridpack_json)
         self.logger.info('Creating request for %s', gridpack)
-        self.create_mcm_request(gridpack)
         gridpack.add_history_entry('create request')
+        self.create_mcm_request(gridpack)
         self.database.update_gridpack(gridpack)
 
     def force_request_for_gridpack(self, gridpack_id):
@@ -402,8 +402,8 @@ class Controller():
             return {'message': msg}
         
         self.logger.info('Forcing a request creation for %s', gridpack)
-        self.create_mcm_request(gridpack)
         gridpack.add_history_entry('force request')
+        self.create_mcm_request(gridpack)
         self.database.update_gridpack(gridpack)
         return None
     
@@ -469,16 +469,31 @@ class Controller():
         In case the Gridpack reused the output from another
         its output file will be used to build the current
         fragment.
+
+        Args:
+            Gridpack: Gridpack to construct the McM fragment.
+
+        Returns:
+            tuple[str, bool]: Gridpack's fragment and a signal
+                to determine if there is a valid file already set
+                for this element.
         """
         original_id: str = gridpack.get_gridpack_reused()
+        fragment: str = ''
+        valid_file: bool = False
+
         if not original_id:
-            return FragmentBuilder().build_fragment(gridpack=gridpack)
+            fragment = FragmentBuilder().build_fragment(gridpack=gridpack)
+            valid_file = bool(gridpack.get('archive'))
+        else:        
+            original_gridpack: Gridpack = self.get_original_gridpack(original_id)
+            fragment = FragmentBuilder().build_fragment(
+                gridpack=gridpack, 
+                effective_gridpack_file=original_gridpack.get_absolute_path()
+            )
+            valid_file = True
         
-        original_gridpack: Gridpack = self.get_original_gridpack(original_id)
-        return FragmentBuilder().build_fragment(
-            gridpack=gridpack, 
-            effective_gridpack_file=original_gridpack.get_absolute_path()
-        )
+        return (fragment, valid_file)
 
     def terminate_gridpack(self, gridpack):
         """
@@ -697,12 +712,18 @@ class Controller():
         remote_directory = f'{remote_directory_base}/{gridpack_id}'
         tickets_host = Config.get('tickets_host')
         ssh_credentials = Config.get('ssh_credentials')
-        fragment = self.get_fragment(gridpack)
+        fragment, valid_file = self.get_fragment(gridpack)
         chain = gridpack.get_campaign_dict().get('chain')
         dataset_name = gridpack.get('dataset_name')
         events = gridpack.get('events')
         process = gridpack.get('process')
         generator = gridpack.get('generator')
+
+        if not valid_file:
+            gridpack.set_status('failed')
+            gridpack.add_history_entry('invalid gridpack file')
+            self.send_invalid_mcm_request_notification(gridpack=gridpack)
+            return
 
         with SSHExecutor(tickets_host, ssh_credentials) as ssh:
             ssh.execute_command([f'rm -rf {remote_directory}',
@@ -843,6 +864,30 @@ class Controller():
         recipients = [f'{user}@cern.ch' for user in gridpack.get_users()]
         emailer = EmailSender(Config.get('ssh_credentials'))
         emailer.send(subject, body, recipients)
+
+    def send_invalid_mcm_request_notification(self, gridpack):
+        """
+        Send email notification that gridpack doesn't have a valid output file
+        to create a request in McM.
+        """
+        gridpack_dict = gridpack.get_json()
+        campaign = gridpack_dict.get('campaign')
+        generator = gridpack_dict.get('generator')
+        dataset = gridpack_dict.get('dataset')
+        gridpack_id = gridpack.get_id()
+        gridpack_name = f'{campaign} {dataset} {generator}'
+        service_url = Config.get('service_url')
+        body = 'Hello,\n\n'
+        body += (
+            f'Gridpack {gridpack_name} ({gridpack_id}) does not have a valid output file '
+            'to include in the McM request fragment. Therefore, no McM request is going to be created.\n'
+        )
+        body += f'Gridpack job: {service_url}?_id={gridpack_id}\n'
+        subject = f'Gridpack {gridpack_name} failed to retrieve the output file to create a McM request'
+        recipients = [f'{user}@cern.ch' for user in gridpack.get_users()]
+        emailer = EmailSender(Config.get('ssh_credentials'))
+        emailer.send(subject, body, recipients)
+
 
     def send_failed_notification(self, gridpack, files=None):
         """
