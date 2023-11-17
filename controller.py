@@ -313,16 +313,22 @@ class Controller():
                 process=requested_process
             )
             if not related_gridpacks:
+                # 'gridpack_reused' := '-1'
+                # There's a valid file but the record about the Gridpack
+                # request that produced it couldn't be found.
                 cause = (
                     "Could not find the parent Gridpack that create the "
                     f"output file: {gridpack_file}"
                 )
-                raise AssertionError(cause)
+                self.logger.warning(cause)
+                gridpack.data['gridpack_reused'] = "-1"
+            else:
+                parent_gridpack: Gridpack = Gridpack.make(related_gridpacks[0])
+                gridpack.data['gridpack_reused'] = parent_gridpack.get_id()
 
             # Set the gridpack artifact
             # Set the archive name just as a reference for the table
-            parent_gridpack: Gridpack = Gridpack.make(related_gridpacks[0])
-            gridpack.data['gridpack_reused'] = parent_gridpack.get_id()
+            gridpack.data['archive_absolute'] = str(gridpack_file)
             gridpack.data['archive'] = str(gridpack_file.name)
             gridpack.set_status('reused')
             gridpack.add_history_entry(f'gridpack reused')
@@ -478,21 +484,10 @@ class Controller():
                 to determine if there is a valid file already set
                 for this element.
         """
-        original_id: str = gridpack.get_gridpack_reused()
         fragment: str = ''
         valid_file: bool = False
-
-        if not original_id:
-            fragment = FragmentBuilder().build_fragment(gridpack=gridpack)
-            valid_file = bool(gridpack.get('archive'))
-        else:        
-            original_gridpack: Gridpack = self.get_original_gridpack(original_id)
-            fragment = FragmentBuilder().build_fragment(
-                gridpack=gridpack, 
-                effective_gridpack_file=original_gridpack.get_absolute_path()
-            )
-            valid_file = True
-        
+        fragment = FragmentBuilder().build_fragment(gridpack=gridpack)
+        valid_file = bool(gridpack.get('archive') and gridpack.get_absolute_path())
         return (fragment, valid_file)
 
     def terminate_gridpack(self, gridpack):
