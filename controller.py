@@ -808,11 +808,15 @@ class Controller():
         gridpack_name = f'{campaign} {dataset} {generator}'
         service_url = Config.get('service_url')
 
-        # Attempt to retrieve the ID for the parent gridpack.
+        # Retrieve the Gridpack file path.
         gridpack_ref: str = ''
+        gridpack_path: str = ''
         try:
-            gridpack_reused = self.get_original_gridpack(gridpack.get_id())
-            gridpack_ref = f'Gridpack reused: {gridpack_reused.get_absolute_path()}\n'
+            gridpack_path = gridpack.get_absolute_path()
+            if not gridpack_path:
+                gridpack_reused = self.get_original_gridpack(gridpack.get_id())
+                gridpack_path = gridpack_reused.get_absolute_path()
+            gridpack_ref = f'Gridpack reused: {gridpack_path}\n'
         except AssertionError:
             gridpack_ref = (
                 'Unable to link the reused Gridpack file with '
