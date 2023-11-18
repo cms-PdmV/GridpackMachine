@@ -428,8 +428,7 @@ class Controller():
                 provided ID.
             AssertionError: If the Gridpack data indicates that it reused
                 output but there was not possible to find the Gridpack
-                that submit the job or if there is more than one Gridpack
-                linked.
+                that submit the job.
         """
         gridpack_json = self.database.get_gridpack(gridpack_id)
         if not gridpack_json:
@@ -807,8 +806,21 @@ class Controller():
         dataset = gridpack_dict.get('dataset')
         gridpack_id = gridpack.get_id()
         gridpack_name = f'{campaign} {dataset} {generator}'
-        gridpack_reused = self.get_original_gridpack(gridpack.get_id())
         service_url = Config.get('service_url')
+
+        # Attempt to retrieve the ID for the parent gridpack.
+        gridpack_ref: str = ''
+        try:
+            gridpack_reused = self.get_original_gridpack(gridpack.get_id())
+            gridpack_ref = f'Gridpack reused: {gridpack_reused.get_absolute_path()}\n'
+        except AssertionError:
+            gridpack_ref = (
+                'Unable to link the reused Gridpack file with '
+                'the Gridpack request that created it.\n'
+                'Maybe, this file being reused was created manually and then moved '
+                'to the storage folder to reused it as input for more Gridpack '
+                'requests in this application.\n'
+            )
 
         body = 'Hello,\n\n'
         body += f'Gridpack {gridpack_name} ({gridpack_id}) will reuse artifacts.\n'
@@ -816,7 +828,7 @@ class Controller():
             'Instead of creating a new Gridpack via a batch job. '
             'This Gridpack used one that already existed\n'
         )
-        body += f'Gridpack reused: {gridpack_reused.get_absolute_path()}\n'
+        body += gridpack_ref
         body += f'A request in McM will be created\n'
         body += f'For more details, please see\n'
         body += f'Gridpack job: {service_url}?_id={gridpack_id}\n'
