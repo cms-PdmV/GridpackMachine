@@ -313,16 +313,22 @@ class Controller():
                 process=requested_process
             )
             if not related_gridpacks:
+                # 'gridpack_reused' := '-1'
+                # There's a valid file but the record about the Gridpack
+                # request that produced it couldn't be found.
                 cause = (
                     "Could not find the parent Gridpack that create the "
                     f"output file: {gridpack_file}"
                 )
-                raise AssertionError(cause)
+                self.logger.warning(cause)
+                gridpack.data['gridpack_reused'] = "-1"
+            else:
+                parent_gridpack: Gridpack = Gridpack.make(related_gridpacks[0])
+                gridpack.data['gridpack_reused'] = parent_gridpack.get_id()
 
             # Set the gridpack artifact
             # Set the archive name just as a reference for the table
-            parent_gridpack: Gridpack = Gridpack.make(related_gridpacks[0])
-            gridpack.data['gridpack_reused'] = parent_gridpack.get_id()
+            gridpack.data['archive_absolute'] = str(gridpack_file)
             gridpack.data['archive'] = str(gridpack_file.name)
             gridpack.set_status('reused')
             gridpack.add_history_entry(f'gridpack reused')
@@ -422,8 +428,7 @@ class Controller():
                 provided ID.
             AssertionError: If the Gridpack data indicates that it reused
                 output but there was not possible to find the Gridpack
-                that submit the job or if there is more than one Gridpack
-                linked.
+                that submit the job.
         """
         gridpack_json = self.database.get_gridpack(gridpack_id)
         if not gridpack_json:
@@ -478,21 +483,10 @@ class Controller():
                 to determine if there is a valid file already set
                 for this element.
         """
-        original_id: str = gridpack.get_gridpack_reused()
         fragment: str = ''
         valid_file: bool = False
-
-        if not original_id:
-            fragment = FragmentBuilder().build_fragment(gridpack=gridpack)
-            valid_file = bool(gridpack.get('archive'))
-        else:        
-            original_gridpack: Gridpack = self.get_original_gridpack(original_id)
-            fragment = FragmentBuilder().build_fragment(
-                gridpack=gridpack, 
-                effective_gridpack_file=original_gridpack.get_absolute_path()
-            )
-            valid_file = True
-        
+        fragment = FragmentBuilder().build_fragment(gridpack=gridpack)
+        valid_file = bool(gridpack.get('archive') and gridpack.get_absolute_path())
         return (fragment, valid_file)
 
     def terminate_gridpack(self, gridpack):
@@ -818,8 +812,25 @@ class Controller():
         dataset = gridpack_dict.get('dataset')
         gridpack_id = gridpack.get_id()
         gridpack_name = f'{campaign} {dataset} {generator}'
-        gridpack_reused = self.get_original_gridpack(gridpack.get_id())
         service_url = Config.get('service_url')
+
+        # Retrieve the Gridpack file path.
+        gridpack_ref: str = ''
+        gridpack_path: str = ''
+        try:
+            gridpack_path = gridpack.get_absolute_path()
+            if not gridpack_path:
+                gridpack_reused = self.get_original_gridpack(gridpack.get_id())
+                gridpack_path = gridpack_reused.get_absolute_path()
+            gridpack_ref = f'Gridpack reused: {gridpack_path}\n'
+        except AssertionError:
+            gridpack_ref = (
+                'Unable to link the reused Gridpack file with '
+                'the Gridpack request that created it.\n'
+                'Maybe, this file being reused was created manually and then moved '
+                'to the storage folder to reused it as input for more Gridpack '
+                'requests in this application.\n'
+            )
 
         body = 'Hello,\n\n'
         body += f'Gridpack {gridpack_name} ({gridpack_id}) will reuse artifacts.\n'
@@ -827,7 +838,7 @@ class Controller():
             'Instead of creating a new Gridpack via a batch job. '
             'This Gridpack used one that already existed\n'
         )
-        body += f'Gridpack reused: {gridpack_reused.get_absolute_path()}\n'
+        body += gridpack_ref
         body += f'A request in McM will be created\n'
         body += f'For more details, please see\n'
         body += f'Gridpack job: {service_url}?_id={gridpack_id}\n'

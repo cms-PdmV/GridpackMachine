@@ -170,8 +170,8 @@ class Gridpack():
         set by the user if the Gridpack reuses
         an old one.
         """
-        self.data.pop('job_cores')
-        self.data.pop('job_memory')
+        self.data.pop('job_cores', '')
+        self.data.pop('job_memory', '')
     
     def get_gridpack_reused(self):
         """

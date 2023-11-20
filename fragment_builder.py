@@ -17,8 +17,7 @@ class FragmentBuilder():
 
     def build_fragment(
         self, 
-        gridpack,
-        effective_gridpack_file: str = ""
+        gridpack
     ):
         dataset_dict = gridpack.get_dataset_dict()
         file_list = dataset_dict.get('fragment', [])
@@ -33,7 +32,7 @@ class FragmentBuilder():
 
             fragment += contents + '\n\n'
 
-        fragment = self.fragment_replace(fragment, gridpack, effective_gridpack_file)
+        fragment = self.fragment_replace(fragment, gridpack)
         return fragment
 
     def get_external_lhe_producer(self):
@@ -61,8 +60,7 @@ class FragmentBuilder():
     def fragment_replace(
         self, 
         fragment, 
-        gridpack: Gridpack, 
-        effective_gridpack_file: str = ""
+        gridpack: Gridpack
     ):
         with open(self.imports_path) as input_file:
             import_dict = json.load(input_file)
@@ -76,16 +74,9 @@ class FragmentBuilder():
         fragment_vars['tuneName'] = tune
         fragment_vars['comEnergy'] = int(beam * 2)
         fragment_vars['tuneImport'] = import_dict['tune'][tune]
-        archive_path = Config.get('gridpack_directory')
-        archive_path = gridpack.get_remote_storage_path()
 
         # Set the final path
-        final_archive_path = ''
-        if effective_gridpack_file:
-            final_archive_path = effective_gridpack_file
-        else:
-            archive_name = gridpack.get('archive') or 'Nothing.zip'
-            final_archive_path = os.path.join(archive_path, archive_name)
+        final_archive_path = gridpack.get_absolute_path()
 
         # Set the Gridpack's path for the fragment
         # Replace the path if CMS GEN production folder is used,
