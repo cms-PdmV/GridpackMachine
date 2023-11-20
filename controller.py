@@ -657,7 +657,13 @@ class Controller():
             if gridpack_archive:
                 gridpack_directory = gridpack.get_remote_storage_path()
                 self.logger.info('Copying gridpack %s/%s->%s', remote_directory, gridpack_archive, gridpack_directory)
-                stdout, stderr, _ = ssh.execute_command(f'rsync -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" {remote_directory}/{gridpack_archive} lxplus.cern.ch:{gridpack_directory}')
+                sync_command: str = (
+                    'rsync -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" '
+                    f'{remote_directory}/{gridpack_archive} '
+                    f'{submission_host}:{gridpack_directory}'
+                )
+                self.logger.info('Sync command: %s', sync_command)
+                stdout, stderr, _ = ssh.execute_command(sync_command)
                 self.logger.debug(stdout)
                 self.logger.debug(stderr)
 
