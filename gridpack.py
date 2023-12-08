@@ -508,7 +508,7 @@ class Gridpack():
             "log                     = job.log",
             f"RequestCpus            = {self.get_cores()}",
             f"RequestMemory          = {self.get_memory()}",
-            '+REQUIRED_OS            = "rhel7"',
+            '+REQUIRED_OS            = "rhel9"',
             '+AccountingGroup        = "group_u_CMS.u_zh.priority"',
             "leave_in_queue          = JobStatus == 4 && (CompletionDate =?= UNDEFINED || ((CurrentTime - CompletionDate) < 7200))",
             "queue",
