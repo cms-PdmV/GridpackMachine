@@ -332,3 +332,69 @@ def retrieve_all_files_available(
         result[folder_path] = files_parsed_content
 
     return result
+
+
+def wrap_into_singularity(
+        script_name: str, 
+        content: list, 
+        desired_os: str,
+) -> list:
+    """
+    Wraps a script to run via singularity using cmssw containers.
+    
+    Args:
+        script_name (str): Name of the subscript that groups the given instructions
+            to be executed via singularity.
+        content (list[str]): Instructions to execute via singularity.
+        desired_os (str): CERN OS tag related to the desired OS to use.
+    
+    Returns:
+        list[str]: Instructions provided with some extra code to handle
+            singularity.
+    """
+    # CMSSW container folder
+    container_path = '/cvmfs/unpacked.cern.ch/registry.hub.docker.com/cmssw'
+
+    # Wrapper instructions
+    wrapper_placeholder = 'EndOfSingularityWrapper'
+    wrapper_header = [
+        '',
+        f"cat <<'{wrapper_placeholder}' > {script_name}"
+    ]
+    # Execution command
+    singularity_run = (
+        'singularity run ' 
+        '-B /afs -B /cvmfs -B /etc/grid-security -B /etc/pki/ca-trust '
+        '--no-home /cvmfs/unpacked.cern.ch/registry.hub.docker.com/cmssw/$CONTAINER_NAME '
+        '$(echo $(pwd)/%s)' % (script_name)
+    )
+    wrapper_close = [
+        '',
+        f'# End of {script_name} file',
+        f'{wrapper_placeholder}',
+        '',
+        f'# Make {script_name} file executable',
+        f'chmod +x {script_name}',
+        '',
+        '# Check the proper tag for the architectue',
+        'if [ -e "%s/%s:amd64" ]; then' % (container_path, desired_os),
+        '  CONTAINER_NAME="%s:amd64"' % (desired_os),
+        'elif [ -e "%s/%s:x86_64" ]; then' % (container_path, desired_os),
+        '  CONTAINER_NAME="%s:x86_64"' % (desired_os),
+        'else',
+            '  echo "Could not find amd64 or x86_64 for %s"' % (desired_os),
+            '  exit 1',
+        'fi',
+        '',
+        '# Running into a singularity container',
+        'export SINGULARITY_CACHEDIR="/tmp/$(whoami)/singularity"',
+        f'{singularity_run}',
+        ''
+    ]
+
+    # Wrap all together
+    result = []
+    result += wrapper_header
+    result += content.copy()
+    result += wrapper_close
+    return result

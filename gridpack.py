@@ -10,9 +10,11 @@ from utils import (
     get_available_campaigns, 
     get_available_cards, 
     get_git_branches,
-    check_append_path
+    check_append_path,
+    wrap_into_singularity
 )
 from user import User
+from ssh_executor import HTCondorExecutor
 
 
 MEMORY_FACTOR_MB = 1000
@@ -483,11 +485,25 @@ class Gridpack():
                    'echo ".t*z archives after gridpack_generation.sh:"',
                    'ls -lha *.t*z',
                    f'mv *{dataset_name}*.t*z $ORG_PWD']
+        
+        # Prepare to run via singularity
+        outside_index = 5
+        outside_singularity = command[:outside_index] 
+        inside_singularity = command[outside_index:] 
+        wrapped = wrap_into_singularity(
+            script_name=f'GRIDPACK_SINGULARITY_{self.get_id()}.sh',
+            content=inside_singularity,
+            desired_os="el7"
+        )
+
+        execution_script = []
+        execution_script += outside_singularity
+        execution_script += wrapped
 
         script_path = os.path.join(self.local_dir(), script_name)
         self.logger.debug('Writing sh script to %s', script_path)
         with open(script_path, 'w') as script_file:
-            script_file.write('\n'.join(command))
+            script_file.write('\n'.join(execution_script))
 
         os.system(f"chmod a+x {script_path}")
 
@@ -495,6 +511,7 @@ class Gridpack():
         """
         Make condor job description file
         """
+        chosen_group: str = HTCondorExecutor.retrieve_accounting_group()
         gridpack_id = self.get_id()
         script_name = f'GRIDPACK_{gridpack_id}.sh'
         jds = [
@@ -508,8 +525,8 @@ class Gridpack():
             "log                     = job.log",
             f"RequestCpus            = {self.get_cores()}",
             f"RequestMemory          = {self.get_memory()}",
-            'MY.WantOS               = "el7"',
-            '+AccountingGroup        = "group_u_CMS.u_zh.priority"',
+            'requirements            = (OpSysAndVer =?= "AlmaLinux9")',
+            f'+AccountingGroup        = "{chosen_group}"',
             "leave_in_queue          = JobStatus == 4 && (CompletionDate =?= UNDEFINED || ((CurrentTime - CompletionDate) < 7200))",
             "queue",
         ]
