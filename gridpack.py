@@ -14,6 +14,7 @@ from utils import (
     wrap_into_singularity
 )
 from user import User
+from ssh_executor import HTCondorExecutor
 
 
 MEMORY_FACTOR_MB = 1000
@@ -510,6 +511,7 @@ class Gridpack():
         """
         Make condor job description file
         """
+        chosen_group: str = HTCondorExecutor.retrieve_accounting_group()
         gridpack_id = self.get_id()
         script_name = f'GRIDPACK_{gridpack_id}.sh'
         jds = [
@@ -524,7 +526,7 @@ class Gridpack():
             f"RequestCpus            = {self.get_cores()}",
             f"RequestMemory          = {self.get_memory()}",
             'requirements            = (OpSysAndVer =?= "AlmaLinux9")',
-            '+AccountingGroup        = "group_u_CMS.u_zh.priority"',
+            f'+AccountingGroup        = "{chosen_group}"',
             "leave_in_queue          = JobStatus == 4 && (CompletionDate =?= UNDEFINED || ((CurrentTime - CompletionDate) < 7200))",
             "queue",
         ]

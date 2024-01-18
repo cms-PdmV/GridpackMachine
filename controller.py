@@ -17,7 +17,7 @@ from utils import (clean_split,
                    get_latest_log_output_in_condor,
                    retrieve_all_files_available,
                    run_command)
-from ssh_executor import SSHExecutor
+from ssh_executor import SSHExecutor, HTCondorExecutor
 from config import Config
 from threading import Lock
 from fragment_builder import FragmentBuilder
@@ -118,7 +118,7 @@ class Controller():
         self.logger.info('Gridpacks to check: %s', ','.join(g['_id'] for g in gridpacks_to_check))
         condor_jobs = {}
         if gridpacks_to_check:
-            with SSHExecutor(submission_host, ssh_credentials) as ssh:
+            with HTCondorExecutor(submission_host, ssh_credentials) as ssh:
                 condor_jobs = get_jobs_in_condor(ssh)
 
         for gridpack_json in gridpacks_to_check:
@@ -130,7 +130,7 @@ class Controller():
                 self.collect_output(gridpack)
             if condor_status in ('RUN'):
                 # Stream the output to a public area
-                with SSHExecutor(submission_host, ssh_credentials) as ssh:
+                with HTCondorExecutor(submission_host, ssh_credentials) as ssh:
                     get_latest_log_output_in_condor(gridpack=gridpack, ssh=ssh)
 
         if self.gridpacks_to_create_requests:
@@ -498,7 +498,7 @@ class Controller():
         if condor_id > 0:
             submission_host = Config.get('submission_host')
             ssh_credentials = Config.get('ssh_credentials')
-            with SSHExecutor(submission_host, ssh_credentials) as ssh:
+            with HTCondorExecutor(submission_host, ssh_credentials) as ssh:
                 ssh.execute_command(f'condor_rm {condor_id}')
         else:
             self.logger.info('Gridpack %s HTCondor id %s is not valid', gridpack, condor_id)
@@ -526,7 +526,7 @@ class Controller():
             remote_directory = f'{remote_directory_base}/{gridpack_id}'
             submission_host = Config.get('submission_host')
             ssh_credentials = Config.get('ssh_credentials')
-            with SSHExecutor(submission_host, ssh_credentials) as ssh:
+            with HTCondorExecutor(submission_host, ssh_credentials) as ssh:
                 ssh.execute_command([f'rm -rf {remote_directory}',
                                      f'mkdir -p {remote_directory}'])
 
@@ -544,9 +544,12 @@ class Controller():
                 # Run condor_submit
                 # Submission happens through lxplus as condor is not available
                 # on website machine
-                # It is easier to ssh to lxplus than set up condor locally
-                stdout, stderr, _ = ssh.execute_command([f'cd {remote_directory}',
-                                                         f'condor_submit GRIDPACK_{gridpack_id}.jds'])
+                # It is easier to ssh to lxplus than set up condor locally.
+                submission_command = [
+                    f'cd {remote_directory}',
+                    f'condor_submit GRIDPACK_{gridpack_id}.jds'
+                ]
+                stdout, stderr, _ = ssh.execute_command(submission_command)
 
             self.logger.debug(stdout)
             self.logger.debug(stderr)
@@ -630,7 +633,7 @@ class Controller():
 
         stdout = ''
         gridpack_archive = ''
-        with SSHExecutor(submission_host, ssh_credentials) as ssh:
+        with HTCondorExecutor(submission_host, ssh_credentials) as ssh:
             ssh.download_file(f'{remote_directory}/job.log',
                               f'{local_directory}/job.log')
             ssh.download_file(f'{remote_directory}/output.log',

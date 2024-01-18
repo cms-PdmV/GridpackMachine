@@ -1,11 +1,15 @@
 """
 Module that handles all SSH operations - both ssh and ftp
+and operations related to HTCondor involving the execution of remote
+commands over SSH.
 """
 import json
 import time
 import logging
 from io import BytesIO
+from typing import Union
 import paramiko
+from config import Config
 
 
 class SSHExecutor():
@@ -203,3 +207,75 @@ class SSHExecutor():
             self.ssh_client.close()
             self.ssh_client = None
             self.logger.debug('Closed ssh client')
+
+
+class HTCondorExecutor(SSHExecutor):
+    """
+    SSHExecutor that sets required environments
+    for interacting with some special pool of HTCondor nodes
+    like CMS CAF.
+    """
+
+    ENABLE_CMS_CAF_ENV = 'module load lxbatch/tzero'
+    CMS_CAF_GROUP = 'group_u_CMS.CAF.PHYS'
+    LXBATCH_PRIORITY_GROUP = 'group_u_CMS.u_zh.priority'
+
+    def __set_env(self) -> str:
+        """
+        Retrieves the instruction(s) required to set the desired
+        HTCondor environment.
+
+        Returns:
+            str: Extra instructions to set the desired environment,
+                a blank string if returned if it is not required to choose
+                an special environment.
+        """
+        to_caf: bool = bool(Config.get('use_htcondor_cms_caf'))
+        if to_caf:
+            self.logger.info('HTCondor nodes: Running command to CMS CAF')
+            return self.ENABLE_CMS_CAF_ENV
+        
+        return ''
+
+
+    @staticmethod
+    def retrieve_accounting_group() -> str:
+        """
+        Retrieves the AccountingGroup attribute to use in
+        HTCondor configuration files.
+        """
+        to_caf: bool = bool(Config.get('use_htcondor_cms_caf'))
+        if to_caf:
+            return HTCondorExecutor.CMS_CAF_GROUP
+        
+        return HTCondorExecutor.LXBATCH_PRIORITY_GROUP
+
+
+    def execute_command(self, command):
+        """
+        Execute command over SSH related to HTCondor operations
+
+        Args:
+            command (str | list[str]): Command(s) to execute
+        """
+        enable_env: str = self.__set_env()
+        command_and_env = ""
+        if not isinstance(command, list) and not isinstance(command, str):
+            msg = (
+                "Invalid type for the command - "
+                "Expected list[str] or str - "
+                f"Received: {type(command)}"
+            )
+            raise ValueError(msg)
+        
+        if not enable_env:
+            return super(HTCondorExecutor, self).execute_command(command=command)
+
+        if isinstance(command, list):
+            command_and_env = command.copy()
+            command_and_env.insert(0, enable_env)
+            return super(HTCondorExecutor, self).execute_command(command=command_and_env)
+    
+        # Complete the string command
+        command_and_env = '; '.join([enable_env, command])
+        return super(HTCondorExecutor, self).execute_command(command=command_and_env)
