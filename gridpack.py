@@ -17,7 +17,8 @@ from user import User
 from ssh_executor import HTCondorExecutor
 
 
-MEMORY_FACTOR_MB = 1000
+MEMORY_FACTOR_MB = int(1e3)
+DISK_FACTOR_KB_TO_GB = int(1e6)
 
 
 class Gridpack():
@@ -525,6 +526,7 @@ class Gridpack():
             "log                     = job.log",
             f"RequestCpus            = {self.get_cores()}",
             f"RequestMemory          = {self.get_memory()}",
+            f"RequestDisk            = {30 * DISK_FACTOR_KB_TO_GB}",
             'requirements            = (OpSysAndVer =?= "AlmaLinux9")',
             f'+AccountingGroup        = "{chosen_group}"',
             "leave_in_queue          = JobStatus == 4 && (CompletionDate =?= UNDEFINED || ((CurrentTime - CompletionDate) < 7200))",
