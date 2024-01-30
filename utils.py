@@ -10,7 +10,7 @@ from os.path import isdir
 from os.path import join as path_join
 from connection_wrapper import ConnectionWrapper
 from ssh_executor import SSHExecutor
-from config import Config
+from environment import PUBLIC_STREAM_FOLDER, GRIDPACK_FILES_PATH
 
 
 CONDOR_STATUS = {'0': 'UNEXPLAINED',
@@ -97,7 +97,7 @@ def get_latest_log_output_in_condor(gridpack, ssh=None):
     """
     logger = logging.getLogger()
     condor_id = gridpack.get_condor_id()
-    public_stream_folder = Config.get('public_stream_folder')
+    public_stream_folder = PUBLIC_STREAM_FOLDER
     generation_log_file = f'{public_stream_folder}/GRIDPACK_GENERATION_{gridpack.get_id()}.log'
 
     if condor_id == 0:
@@ -144,7 +144,7 @@ def get_available_campaigns(cache=True):
     global CAMPAIGNS_CACHE
     if not cache or not CAMPAIGNS_CACHE:
         CAMPAIGNS_CACHE = {}
-        campaigns_dir = os.path.join(Config.get('gridpack_files_path'), 'Campaigns')
+        campaigns_dir = os.path.join(GRIDPACK_FILES_PATH, 'Campaigns')
         campaigns = [c for c in listdir(campaigns_dir) if isdir(path_join(campaigns_dir, c))]
         for name in campaigns:
             campaign_path = os.path.join(campaigns_dir, name)
@@ -165,7 +165,7 @@ def get_available_cards(cache=True):
     global CARDS_CACHE
     if not cache or not CARDS_CACHE:
         CARDS_CACHE = {}
-        cards_dir = os.path.join(Config.get('gridpack_files_path'), 'Cards')
+        cards_dir = os.path.join(GRIDPACK_FILES_PATH, 'Cards')
         generators = [c for c in listdir(cards_dir) if isdir(path_join(cards_dir, c))]
         for generator in generators:
             generator_path = os.path.join(cards_dir, generator)
@@ -184,7 +184,7 @@ def get_available_tunes(cache=True):
     """
     global TUNES_CACHE
     if not cache or not TUNES_CACHE:
-        imports_path = os.path.join(Config.get('gridpack_files_path'), 'Fragments', 'imports.json')
+        imports_path = os.path.join(GRIDPACK_FILES_PATH, 'Fragments', 'imports.json')
         if not os.path.isfile(imports_path):
             TUNES_CACHE = []
             return TUNES_CACHE

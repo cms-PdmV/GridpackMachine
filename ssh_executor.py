@@ -7,9 +7,8 @@ import json
 import time
 import logging
 from io import BytesIO
-from typing import Union
+from environment import USE_HTCONDOR_CMS_CAF
 import paramiko
-from config import Config
 
 
 class SSHExecutor():
@@ -17,12 +16,13 @@ class SSHExecutor():
     SSH executor allows to perform remote commands and upload/download files
     """
 
-    def __init__(self, host, credentials_path):
+    def __init__(self, host, username, password):
         self.ssh_client = None
         self.ftp_client = None
         self.logger = logging.getLogger()
         self.remote_host = host
-        self.credentials_file_path = credentials_path
+        self.username =  username
+        self.password = password
         self.timeout = 3600
         self.max_retries = 3
 
@@ -41,15 +41,11 @@ class SSHExecutor():
         if self.ssh_client:
             self.close_connections()
 
-        with open(self.credentials_file_path) as json_file:
-            credentials = json.load(json_file)
-
-        self.logger.info('Credentials loaded successfully: %s', credentials['username'])
         self.ssh_client = paramiko.SSHClient()
         self.ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.ssh_client.connect(self.remote_host,
-                                username=credentials["username"],
-                                password=credentials["password"],
+                                username=self.username,
+                                password=self.password,
                                 timeout=30)
         self.logger.debug('Done setting up ssh')
 
@@ -230,8 +226,7 @@ class HTCondorExecutor(SSHExecutor):
                 a blank string if returned if it is not required to choose
                 an special environment.
         """
-        to_caf: bool = bool(Config.get('use_htcondor_cms_caf'))
-        if to_caf:
+        if USE_HTCONDOR_CMS_CAF:
             self.logger.info('HTCondor nodes: Running command to CMS CAF')
             return self.ENABLE_CMS_CAF_ENV
         
@@ -244,8 +239,7 @@ class HTCondorExecutor(SSHExecutor):
         Retrieves the AccountingGroup attribute to use in
         HTCondor configuration files.
         """
-        to_caf: bool = bool(Config.get('use_htcondor_cms_caf'))
-        if to_caf:
+        if USE_HTCONDOR_CMS_CAF:
             return HTCondorExecutor.CMS_CAF_GROUP
         
         return HTCondorExecutor.LXBATCH_PRIORITY_GROUP

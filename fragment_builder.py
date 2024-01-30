@@ -2,7 +2,7 @@ import os
 import json
 import logging
 from gridpack import Gridpack
-from config import Config
+from environment import GRIDPACK_FILES_PATH
 from utils import get_indentation
 from os.path import join as path_join
 
@@ -11,7 +11,7 @@ class FragmentBuilder():
 
     def __init__(self):
         self.logger = logging.getLogger()
-        files_dir = Config.get('gridpack_files_path')
+        files_dir = GRIDPACK_FILES_PATH
         self.fragments_path = os.path.join(files_dir, 'Fragments')
         self.imports_path = os.path.join(self.fragments_path, 'imports.json')
 

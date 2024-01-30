@@ -5,7 +5,12 @@ import pathlib
 import json
 import time
 from copy import deepcopy
-from config import Config
+from environment import (
+    GEN_REPOSITORY,
+    GRIDPACK_FILES_PATH,
+    GRIDPACK_DIRECTORY,
+    PRODUCTION
+)
 from utils import (
     get_available_campaigns, 
     get_available_cards, 
@@ -88,7 +93,7 @@ class Gridpack():
         if unknown_keys:
             return f'Unknown keys {",".join(list(unknown_keys))}'
 
-        branches = get_git_branches(Config.get('gen_repository'), cache=True)
+        branches = get_git_branches(GEN_REPOSITORY, cache=True)
         genproductions = self.data['genproductions']
         if genproductions not in branches:
             return f'Bad GEN productions branch "{genproductions}"'
@@ -265,7 +270,7 @@ class Gridpack():
         generator = self.data['generator']
         process = self.data['process']
         dataset_name = self.data['dataset']
-        files_dir = Config.get('gridpack_files_path')
+        files_dir = GRIDPACK_FILES_PATH
         cards_path = os.path.join(files_dir, 'Cards', generator, process, dataset_name)
         return cards_path
 
@@ -274,7 +279,7 @@ class Gridpack():
         Return path to relevant campaign directory
         """
         campaign = self.data['campaign']
-        files_dir = Config.get('gridpack_files_path')
+        files_dir = GRIDPACK_FILES_PATH
         campaign_path = os.path.join(files_dir, 'Campaigns', campaign)
         return campaign_path
 
@@ -321,8 +326,8 @@ class Gridpack():
         Returns:
             str: Remote storage path
         """
-        gridpack_directory: str = Config.get("gridpack_directory")
-        if not Config.get("dev"):
+        gridpack_directory: str = GRIDPACK_DIRECTORY
+        if PRODUCTION:
             gridpack_directory = "/eos/cms/store/group/phys_generator/cvmfs/gridpacks/PdmV/"
         
         # Include the subpath
@@ -458,7 +463,7 @@ class Gridpack():
         """
         Make a bash script that will run in condor
         """
-        repository = Config.get('gen_repository')
+        repository = GEN_REPOSITORY
         generator = self.data['generator']
         dataset_name = self.data['dataset']
         genproductions = self.data['genproductions']

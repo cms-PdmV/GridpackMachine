@@ -4,7 +4,7 @@ This module handles User class
 from copy import deepcopy
 from flask import request
 from flask import g as request_context
-from config import Config
+from environment import AUTHORIZED
 from utils import clean_split
 
 
@@ -42,7 +42,7 @@ class User():
                      'email': email,
                      'authorized': False}
 
-        authorized = set(clean_split(Config.get('authorized')))
+        authorized = set(clean_split(AUTHORIZED))
         # Either group is authorized or a user
         user_info['authorized'] = len(groups & authorized) > 0 or username in authorized
         return user_info

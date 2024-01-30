@@ -1,18 +1,27 @@
 """
 Module that contains start of the program, tick scheduler and web APIs
 """
-import argparse
 import logging
 import json
 import os
 from flask import Flask, send_file, request, make_response
 from flask_restful import Api
-from fragment_builder import FragmentBuilder
 from scheduler import Scheduler
 from controller import Controller
 from gridpack import Gridpack
 from database import Database
-from config import Config
+from environment import (
+    GEN_REPOSITORY,
+    MONGO_DB_HOST,
+    MONGO_DB_PASSWORD,
+    MONGO_DB_PORT,
+    MONGO_DB_USER,
+    TICK_INTERVAL,
+    REPOSITORY_UPDATE_INTERVAL,
+    DEBUG,
+    HOST,
+    PORT
+)
 from user import User
 from utils import include_gridpack_ids
 
@@ -87,7 +96,7 @@ def system_info():
     return output_text({'last_tick': controller.last_tick,
                         'last_repository_tick': controller.last_repository_tick,
                         'options': controller.repository_tree,
-                        'gen_repository': Config.get('gen_repository'),
+                        'gen_repository': GEN_REPOSITORY,
                         'job_cores': controller.job_cores,
                         'job_memory': controller.job_memory})
 
@@ -374,59 +383,45 @@ def setup_console_logging(debug):
                         level=logging.DEBUG if debug else logging.INFO)
 
 
+def set_scheduler():
+    """
+    Set the automatic jobs for the application scheduler.
+    """
+    logger = logging.getLogger()
+    logger.info('Adding machine tick with interval %ss', TICK_INTERVAL)
+    scheduler.add_job(tick, TICK_INTERVAL)
+    logger.info('Adding repository update with interval %ss', REPOSITORY_UPDATE_INTERVAL)
+    scheduler.add_job(tick_repository, REPOSITORY_UPDATE_INTERVAL)
+
+
+def set_app():
+    """
+    Set the required configuration to start.
+    """
+    global controller
+    setup_console_logging(DEBUG)
+    Database.set_credentials(MONGO_DB_USER, MONGO_DB_PASSWORD)
+    Database.set_host_port(MONGO_DB_HOST, MONGO_DB_PORT)
+    controller = Controller()
+
+
 def main():
     """
     Main function, parse arguments, create a controller and start Flask web server
     """
-    parser = argparse.ArgumentParser(description='Gridpack Service')
-    parser.add_argument('--debug',
-                        help='Debug mode',
-                        action='store_true')
-    parser.add_argument('--port',
-                        help='Port, default is 8001',
-                        default=8001)
-    parser.add_argument('--host',
-                        help='Host IP, default is 0.0.0.0',
-                        default='0.0.0.0')
-    parser.add_argument('--dev',
-                        help='Run a DEV version of gridpack service',
-                        action='store_true')
-    args = vars(parser.parse_args())
-    debug = args.get('debug', False)
-    dev = args.get('dev', False)
-    setup_console_logging(debug)
+    set_app()
     logger = logging.getLogger()
-    Config.load('config.cfg', 'DEFAULT')
-    Config.set('dev', dev)
-    database_auth = Config.get('database_auth')
-    if database_auth:
-        Database.set_credentials_file(database_auth)
 
-    global controller
-    controller = Controller()
-    if not debug or os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
-        tick_interval = int(Config.get('tick_interval', 600))
-        repository_update_interval = int(Config.get('repository_update_interval', 1200))
-        logger.info('Adding machine tick with interval %ss', tick_interval)
-        scheduler.add_job(tick, tick_interval)
-        logger.info('Adding repository update with interval %ss', repository_update_interval)
-        scheduler.add_job(tick_repository, repository_update_interval)
-
-    scheduler.start()
-    port = args.get('port')
-    host = args.get('host')
-    logger.info('Will run on %s:%s', host, port)
-    if os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
-        # Do only once, before the reloader
-        pid = os.getpid()
-        logger.info('PID: %s', pid)
-        with open('gridpack.pid', 'w') as pid_file:
-            pid_file.write(str(pid))
-
+    # Scheduler config - Flask
+    if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
+        set_scheduler()
+        scheduler.start()
+    
+    logger.info('Will run on %s:%s', HOST, PORT)
     try:
-        app.run(host=host,
-                port=port,
-                debug=debug,
+        app.run(host=HOST,
+                port=PORT,
+                debug=DEBUG,
                 threaded=True)
     finally:
         scheduler.stop()

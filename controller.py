@@ -17,8 +17,17 @@ from utils import (clean_split,
                    get_latest_log_output_in_condor,
                    retrieve_all_files_available,
                    run_command)
+from environment import (GRIDPACK_FILES_PATH,
+                         GEN_REPOSITORY,
+                         SUBMISSION_HOST,
+                         SERVICE_ACCOUNT_USERNAME,
+                         SERVICE_ACCOUNT_PASSWORD,
+                         REMOTE_DIRECTORY,
+                         TICKETS_DIRECTORY,
+                         PRODUCTION,
+                         SERVICE_URL,
+                         EMAIL_AUTH)
 from ssh_executor import SSHExecutor, HTCondorExecutor
-from config import Config
 from threading import Lock
 from fragment_builder import FragmentBuilder
 
@@ -47,9 +56,9 @@ class Controller():
             self.logger.info('Not updating repository, last update happened recently')
             return
 
-        branches = get_git_branches(Config.get('gen_repository'), cache=False)
+        branches = get_git_branches(GEN_REPOSITORY, cache=False)
         branches = branches[::-1]
-        files_dir = Config.get('gridpack_files_path')
+        files_dir = GRIDPACK_FILES_PATH
         run_command([f'cd {files_dir}',
                      'git pull'])
         self.repository_tree = {'campaigns': get_available_campaigns(cache=False),
@@ -70,10 +79,6 @@ class Controller():
             time.sleep(3)
 
     def internal_tick(self):
-        # Retrieve SSH session configuration
-        submission_host = Config.get('submission_host')
-        ssh_credentials = Config.get('ssh_credentials')
-
         # Delete gridpacks
         if self.gridpacks_to_delete:
             self.logger.info('Gridpacks to delete: %s', ','.join(self.gridpacks_to_delete))
@@ -96,7 +101,9 @@ class Controller():
                 'Gridpacks that could reuse output - Checking them: %s', 
                 ','.join(self.gridpacks_that_reuse_output)
             )
-            with SSHExecutor(submission_host, ssh_credentials) as ssh:
+            with SSHExecutor(
+                SUBMISSION_HOST, SERVICE_ACCOUNT_USERNAME, SERVICE_ACCOUNT_PASSWORD
+            ) as ssh:
                 for gridpack_id in self.gridpacks_that_reuse_output:
                     self.reuse_gridpack(
                         gridpack_id=gridpack_id,
@@ -118,7 +125,9 @@ class Controller():
         self.logger.info('Gridpacks to check: %s', ','.join(g['_id'] for g in gridpacks_to_check))
         condor_jobs = {}
         if gridpacks_to_check:
-            with HTCondorExecutor(submission_host, ssh_credentials) as ssh:
+            with HTCondorExecutor(
+                SUBMISSION_HOST, SERVICE_ACCOUNT_USERNAME, SERVICE_ACCOUNT_PASSWORD
+            ) as ssh:
                 condor_jobs = get_jobs_in_condor(ssh)
 
         for gridpack_json in gridpacks_to_check:
@@ -130,7 +139,9 @@ class Controller():
                 self.collect_output(gridpack)
             if condor_status in ('RUN'):
                 # Stream the output to a public area
-                with HTCondorExecutor(submission_host, ssh_credentials) as ssh:
+                with HTCondorExecutor(
+                    SUBMISSION_HOST, SERVICE_ACCOUNT_USERNAME, SERVICE_ACCOUNT_PASSWORD
+                ) as ssh:
                     get_latest_log_output_in_condor(gridpack=gridpack, ssh=ssh)
 
         if self.gridpacks_to_create_requests:
@@ -496,9 +507,9 @@ class Controller():
         self.logger.info('Trying to terminate %s', gridpack)
         condor_id = gridpack.get_condor_id()
         if condor_id > 0:
-            submission_host = Config.get('submission_host')
-            ssh_credentials = Config.get('ssh_credentials')
-            with HTCondorExecutor(submission_host, ssh_credentials) as ssh:
+            with HTCondorExecutor(
+                SUBMISSION_HOST, SERVICE_ACCOUNT_USERNAME, SERVICE_ACCOUNT_PASSWORD
+            ) as ssh:
                 ssh.execute_command(f'condor_rm {condor_id}')
         else:
             self.logger.info('Gridpack %s HTCondor id %s is not valid', gridpack, condor_id)
@@ -522,11 +533,11 @@ class Controller():
             self.logger.info('Will prepare remote directory for %s', gridpack)
             # Prepare remote directory. Delete old one and create a new one
             gridpack_id = gridpack.get_id()
-            remote_directory_base = Config.get('remote_directory')
+            remote_directory_base = REMOTE_DIRECTORY
             remote_directory = f'{remote_directory_base}/{gridpack_id}'
-            submission_host = Config.get('submission_host')
-            ssh_credentials = Config.get('ssh_credentials')
-            with HTCondorExecutor(submission_host, ssh_credentials) as ssh:
+            with HTCondorExecutor(
+                SUBMISSION_HOST, SERVICE_ACCOUNT_USERNAME, SERVICE_ACCOUNT_PASSWORD
+            ) as ssh:
                 ssh.execute_command([f'rm -rf {remote_directory}',
                                      f'mkdir -p {remote_directory}'])
 
@@ -623,17 +634,18 @@ class Controller():
             return
 
         self.logger.info('Collecting output for %s', gridpack)
-        remote_directory_base = Config.get('remote_directory')
+        remote_directory_base = REMOTE_DIRECTORY
         gridpack_id = gridpack.get_id()
         dataset_name = gridpack.data['dataset']
         remote_directory = f'{remote_directory_base}/{gridpack_id}'
-        submission_host = Config.get('submission_host')
-        ssh_credentials = Config.get('ssh_credentials')
+        submission_host = SUBMISSION_HOST
         local_directory = gridpack.local_dir()
 
         stdout = ''
         gridpack_archive = ''
-        with HTCondorExecutor(submission_host, ssh_credentials) as ssh:
+        with HTCondorExecutor(
+            submission_host, SERVICE_ACCOUNT_USERNAME, SERVICE_ACCOUNT_PASSWORD
+        ) as ssh:
             ssh.download_file(f'{remote_directory}/job.log',
                               f'{local_directory}/job.log')
             ssh.download_file(f'{remote_directory}/output.log',
@@ -710,11 +722,9 @@ class Controller():
         """
         Create a request in McM for the given gridpack
         """
-        remote_directory_base = Config.get('tickets_directory')
+        remote_directory_base = TICKETS_DIRECTORY
         gridpack_id = gridpack.get_id()
         remote_directory = f'{remote_directory_base}/{gridpack_id}'
-        tickets_host = Config.get('tickets_host')
-        ssh_credentials = Config.get('ssh_credentials')
         fragment, valid_file = self.get_fragment(gridpack)
         chain = gridpack.get_campaign_dict().get('chain')
         dataset_name = gridpack.get('dataset_name')
@@ -728,7 +738,9 @@ class Controller():
             self.send_invalid_mcm_request_notification(gridpack=gridpack)
             return
 
-        with SSHExecutor(tickets_host, ssh_credentials) as ssh:
+        with SSHExecutor(
+            SUBMISSION_HOST, SERVICE_ACCOUNT_USERNAME, SERVICE_ACCOUNT_PASSWORD
+        ) as ssh:
             ssh.execute_command([f'rm -rf {remote_directory}',
                                  f'mkdir -p {remote_directory}'])
             ssh.upload_file('mcm_gridpack.py',
@@ -736,7 +748,7 @@ class Controller():
             ssh.upload_as_file(fragment,
                               f'{remote_directory}/fragment.py')
 
-            dev = Config.get('dev')
+            dev = not PRODUCTION
             command = [f'cd {remote_directory}',
                        f'python3 mcm_gridpack.py {"--dev" if dev else ""} '
                        '--fragment "fragment.py" '
@@ -770,7 +782,7 @@ class Controller():
         dataset = gridpack_dict.get('dataset')
         gridpack_id = gridpack.get_id()
         gridpack_name = f'{campaign} {dataset} {generator}'
-        service_url = Config.get('service_url')
+        service_url = SERVICE_URL
         body = 'Hello,\n\n'
         body += f'Gridpack {gridpack_name} ({gridpack_id}) job was submitted.\n'
         body += f'Gridpack job: {service_url}?_id={gridpack_id}\n'
@@ -779,7 +791,12 @@ class Controller():
 
         subject = f'Gridpack {gridpack_name} was submitted'
         recipients = [f'{user}@cern.ch' for user in gridpack.get_users()]
-        emailer = EmailSender(Config.get('ssh_credentials'))
+        emailer = EmailSender(
+            SERVICE_ACCOUNT_USERNAME, 
+            SERVICE_ACCOUNT_PASSWORD,
+            EMAIL_AUTH,
+            PRODUCTION
+        )
         emailer.send(subject, body, recipients, files)
 
     def send_done_notification(self, gridpack, files=None):
@@ -792,7 +809,7 @@ class Controller():
         dataset = gridpack_dict.get('dataset')
         gridpack_id = gridpack.get_id()
         gridpack_name = f'{campaign} {dataset} {generator}'
-        service_url = Config.get('service_url')
+        service_url = SERVICE_URL
         body = 'Hello,\n\n'
         body += f'Gridpack {gridpack_name} ({gridpack_id}) job has finished running.\n'
         body += f'Gridpack job: {service_url}?_id={gridpack_id}\n'
@@ -801,7 +818,12 @@ class Controller():
 
         subject = f'Gridpack {gridpack_name} is done'
         recipients = [f'{user}@cern.ch' for user in gridpack.get_users()]
-        emailer = EmailSender(Config.get('ssh_credentials'))
+        emailer = EmailSender(
+            SERVICE_ACCOUNT_USERNAME, 
+            SERVICE_ACCOUNT_PASSWORD,
+            EMAIL_AUTH,
+            PRODUCTION
+        )
         emailer.send(subject, body, recipients, files)
 
     def send_reused_notification(self, gridpack, files=None):
@@ -815,7 +837,7 @@ class Controller():
         dataset = gridpack_dict.get('dataset')
         gridpack_id = gridpack.get_id()
         gridpack_name = f'{campaign} {dataset} {generator}'
-        service_url = Config.get('service_url')
+        service_url = SERVICE_URL
 
         # Retrieve the Gridpack file path.
         gridpack_ref: str = ''
@@ -850,7 +872,12 @@ class Controller():
 
         subject = f'Gridpack {gridpack_name} is reusing artifacts from another Gridpack'
         recipients = [f'{user}@cern.ch' for user in gridpack.get_users()]
-        emailer = EmailSender(Config.get('ssh_credentials'))
+        emailer = EmailSender(
+            SERVICE_ACCOUNT_USERNAME, 
+            SERVICE_ACCOUNT_PASSWORD,
+            EMAIL_AUTH,
+            PRODUCTION
+        )
         emailer.send(subject, body, recipients, files)
 
     def send_failed_reused_notification(
@@ -869,7 +896,7 @@ class Controller():
         dataset = gridpack_dict.get('dataset')
         gridpack_id = gridpack.get_id()
         gridpack_name = f'{campaign} {dataset} {generator}'
-        service_url = Config.get('service_url')
+        service_url = SERVICE_URL
 
         body = 'Hello,\n\n'
         body += (
@@ -882,7 +909,12 @@ class Controller():
 
         subject = f'Gridpack {gridpack_name} failed to reuse artifacts from another Gridpack'
         recipients = [f'{user}@cern.ch' for user in gridpack.get_users()]
-        emailer = EmailSender(Config.get('ssh_credentials'))
+        emailer = EmailSender(
+            SERVICE_ACCOUNT_USERNAME, 
+            SERVICE_ACCOUNT_PASSWORD,
+            EMAIL_AUTH,
+            PRODUCTION
+        )
         emailer.send(subject, body, recipients)
 
     def send_invalid_mcm_request_notification(self, gridpack):
@@ -896,7 +928,7 @@ class Controller():
         dataset = gridpack_dict.get('dataset')
         gridpack_id = gridpack.get_id()
         gridpack_name = f'{campaign} {dataset} {generator}'
-        service_url = Config.get('service_url')
+        service_url = SERVICE_URL
         body = 'Hello,\n\n'
         body += (
             f'Gridpack {gridpack_name} ({gridpack_id}) does not have a valid output file '
@@ -905,7 +937,12 @@ class Controller():
         body += f'Gridpack job: {service_url}?_id={gridpack_id}\n'
         subject = f'Gridpack {gridpack_name} failed to retrieve the output file to create a McM request'
         recipients = [f'{user}@cern.ch' for user in gridpack.get_users()]
-        emailer = EmailSender(Config.get('ssh_credentials'))
+        emailer = EmailSender(
+            SERVICE_ACCOUNT_USERNAME, 
+            SERVICE_ACCOUNT_PASSWORD,
+            EMAIL_AUTH,
+            PRODUCTION
+        )
         emailer.send(subject, body, recipients)
 
 
@@ -919,7 +956,7 @@ class Controller():
         dataset = gridpack_dict.get('dataset')
         gridpack_id = gridpack.get_id()
         gridpack_name = f'{campaign} {dataset} {generator}'
-        service_url = Config.get('service_url')
+        service_url = SERVICE_URL
         body = 'Hello,\n\n'
         body += f'Gridpack {gridpack_name} ({gridpack_id}) job has failed.\n'
         body += f'Gridpack job: {service_url}?_id={gridpack_id}\n'
@@ -928,5 +965,10 @@ class Controller():
 
         subject = f'Gridpack {gridpack_name} job failed'
         recipients = [f'{user}@cern.ch' for user in gridpack.get_users()]
-        emailer = EmailSender(Config.get('ssh_credentials'))
+        emailer = EmailSender(
+            SERVICE_ACCOUNT_USERNAME, 
+            SERVICE_ACCOUNT_PASSWORD,
+            EMAIL_AUTH,
+            PRODUCTION
+        )
         emailer.send(subject, body, recipients, files)

@@ -25,19 +25,17 @@ class Database:
 
     def __init__(self):
         self.logger = logging.getLogger('logger')
-        db_host = os.environ.get('DB_HOST', Database.DATABASE_HOST)
-        db_port = os.environ.get('DB_PORT', Database.DATABASE_PORT)
         if Database.USERNAME and Database.PASSWORD:
             self.logger.debug('Using DB with username and password')
-            self.client = MongoClient(db_host,
-                                      db_port,
+            self.client = MongoClient(host=Database.DATABASE_HOST,
+                                      port=Database.DATABASE_PORT,
                                       username=Database.USERNAME,
                                       password=Database.PASSWORD,
                                       authSource='admin',
                                       authMechanism='SCRAM-SHA-256')[Database.DATABASE_NAME]
         else:
             self.logger.debug('Using DB without username and password')
-            self.client = MongoClient(db_host, db_port)[Database.DATABASE_NAME]
+            self.client = MongoClient(Database.DATABASE_HOST, Database.DATABASE_PORT)[Database.DATABASE_NAME]
 
         self.gridpacks = self.client[self.COLLECTION_NAME]
 
@@ -48,6 +46,14 @@ class Database:
         """
         cls.USERNAME = username
         cls.PASSWORD = password
+
+    @classmethod
+    def set_host_port(cls, host, port):
+        """
+        Set database host and port
+        """
+        cls.DATABASE_HOST = host
+        cls.DATABASE_PORT = port
 
     @classmethod
     def set_credentials_file(cls, filename):

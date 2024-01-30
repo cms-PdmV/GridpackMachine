@@ -15,7 +15,7 @@ class Scheduler():
                     func(*args, **kwargs)
                 except Exception as ex:
                     logger = logging.getLogger()
-                    logger.error('Exception in scheduler %s', ex)
+                    logger.error('Exception in scheduler %s', ex, exc_info=True)
 
                 e.wait(timeout=interval)
 
