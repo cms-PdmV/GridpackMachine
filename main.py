@@ -6,10 +6,10 @@ import json
 import os
 from flask import Flask, send_file, request, make_response
 from flask_restful import Api
-from scheduler import Scheduler
-from controller import Controller
-from gridpack import Gridpack
-from database import Database
+from src.tools.scheduler import Scheduler
+from src.controller import Controller
+from src.gridpack import Gridpack
+from src.database import Database
 from environment import (
     GEN_REPOSITORY,
     MONGO_DB_HOST,
@@ -22,8 +22,8 @@ from environment import (
     HOST,
     PORT
 )
-from user import User
-from utils import include_gridpack_ids
+from src.tools.user import User
+from src.tools.utils import include_gridpack_ids
 
 
 app = Flask(__name__,

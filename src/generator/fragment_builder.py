@@ -1,9 +1,9 @@
 import os
 import json
 import logging
-from gridpack import Gridpack
+from src.gridpack import Gridpack
 from environment import GRIDPACK_FILES_PATH
-from utils import get_indentation
+from src.tools.utils import get_indentation
 from os.path import join as path_join
 
 

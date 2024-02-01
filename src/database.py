@@ -4,9 +4,7 @@ Module that contains Database class
 import logging
 import time
 import json
-import os
-from utils import clean_split
-from typing import Optional
+from src.tools.utils import clean_split
 from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError
 

@@ -11,15 +11,15 @@ from environment import (
     GRIDPACK_DIRECTORY,
     PRODUCTION
 )
-from utils import (
+from src.tools.utils import (
     get_available_campaigns, 
     get_available_cards, 
     get_git_branches,
     check_append_path,
     wrap_into_singularity
 )
-from user import User
-from ssh_executor import HTCondorExecutor
+from src.tools.user import User
+from src.tools.ssh_executor import HTCondorExecutor
 
 
 MEMORY_FACTOR_MB = int(1e3)
@@ -69,11 +69,11 @@ class Gridpack():
         """
         generator = data['generator']
         if generator == "MadGraph5_aMCatNLO":
-            from madgraph_gridpack import MadgraphGridpack
+            from src.generator.madgraph_gridpack import MadgraphGridpack
             return MadgraphGridpack(data)
 
         if generator == 'Powheg':
-            from powheg_gridpack import PowhegGridpack
+            from src.generator.powheg_gridpack import PowhegGridpack
             return PowhegGridpack(data)
 
         raise Exception(f'Could not make gridpack for generator {generator}')

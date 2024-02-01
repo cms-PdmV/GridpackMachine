@@ -5,11 +5,13 @@ import subprocess
 import pathlib
 import re
 import datetime
+import importlib.util
+from typing import Optional
 from os import listdir
 from os.path import isdir
 from os.path import join as path_join
-from connection_wrapper import ConnectionWrapper
-from ssh_executor import SSHExecutor
+from src.tools.connection_wrapper import ConnectionWrapper
+from src.tools.ssh_executor import SSHExecutor
 from environment import PUBLIC_STREAM_FOLDER, GRIDPACK_FILES_PATH
 
 
@@ -289,6 +291,22 @@ def include_gridpack_ids(
     labeled_content += content
 
     return labeled_content
+
+
+def get_module_path(module: str) -> Optional[pathlib.Path]:
+    """
+    Retrieves the absolute path for the desired module if exists.
+
+    Args:
+        module (str): Module name to look.
+    Returns:
+        pathlib.Path | None: Module's path if it exists.
+    """
+    spec = importlib.util.find_spec(module)
+    if not spec:
+        return None
+    return pathlib.Path(spec.origin)
+
 
 def check_append_path(root: str, relative: str) -> pathlib.Path:
     """

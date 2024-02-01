@@ -5,10 +5,10 @@ import zipfile
 import pathlib
 import traceback
 from typing import Optional, Union
-from database import Database
-from gridpack import Gridpack
-from email_sender import EmailSender
-from utils import (clean_split,
+from src.database import Database
+from src.gridpack import Gridpack
+from src.tools.email_sender import EmailSender
+from src.tools.utils import (clean_split,
                    get_available_campaigns,
                    get_available_cards,
                    get_git_branches,
@@ -16,8 +16,8 @@ from utils import (clean_split,
                    get_available_tunes,
                    get_jobs_in_condor,
                    get_latest_log_output_in_condor,
-                   retrieve_all_files_available,
-                   run_command)
+                   get_module_path,
+                   retrieve_all_files_available)
 from environment import (GRIDPACK_FILES_PATH,
                          GRIDPACK_FILES_REPOSITORY,
                          GEN_REPOSITORY,
@@ -29,9 +29,9 @@ from environment import (GRIDPACK_FILES_PATH,
                          PRODUCTION,
                          SERVICE_URL,
                          EMAIL_AUTH)
-from ssh_executor import SSHExecutor, HTCondorExecutor
+from src.tools.ssh_executor import SSHExecutor, HTCondorExecutor
 from threading import Lock
-from fragment_builder import FragmentBuilder
+from src.generator.fragment_builder import FragmentBuilder
 
 
 class Controller():
@@ -725,6 +725,12 @@ class Controller():
         """
         Create a request in McM for the given gridpack
         """
+        # Find the McM script to upload
+        mcm_module_name = 'src.tools.mcm_gridpack'
+        mcm_module_path = get_module_path(mcm_module_name)
+        if not mcm_module_path:
+            raise FileNotFoundError("McM module couldn't be found")
+
         remote_directory_base = TICKETS_DIRECTORY
         gridpack_id = gridpack.get_id()
         remote_directory = f'{remote_directory_base}/{gridpack_id}'
@@ -746,7 +752,7 @@ class Controller():
         ) as ssh:
             ssh.execute_command([f'rm -rf {remote_directory}',
                                  f'mkdir -p {remote_directory}'])
-            ssh.upload_file('mcm_gridpack.py',
+            ssh.upload_file(str(mcm_module_path),
                             f'{remote_directory}/mcm_gridpack.py')
             ssh.upload_as_file(fragment,
                               f'{remote_directory}/fragment.py')

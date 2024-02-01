@@ -5,7 +5,7 @@ from copy import deepcopy
 from flask import request
 from flask import g as request_context
 from environment import AUTHORIZED
-from utils import clean_split
+from src.tools.utils import clean_split
 
 
 class User():
