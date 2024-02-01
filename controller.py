@@ -12,12 +12,14 @@ from utils import (clean_split,
                    get_available_campaigns,
                    get_available_cards,
                    get_git_branches,
+                   pull_git_repository,
                    get_available_tunes,
                    get_jobs_in_condor,
                    get_latest_log_output_in_condor,
                    retrieve_all_files_available,
                    run_command)
 from environment import (GRIDPACK_FILES_PATH,
+                         GRIDPACK_FILES_REPOSITORY,
                          GEN_REPOSITORY,
                          SUBMISSION_HOST,
                          SERVICE_ACCOUNT_USERNAME,
@@ -58,9 +60,10 @@ class Controller():
 
         branches = get_git_branches(GEN_REPOSITORY, cache=False)
         branches = branches[::-1]
-        files_dir = GRIDPACK_FILES_PATH
-        run_command([f'cd {files_dir}',
-                     'git pull'])
+        pull_git_repository(
+            path=GRIDPACK_FILES_PATH,
+            expected_remote=GRIDPACK_FILES_REPOSITORY
+        )
         self.repository_tree = {'campaigns': get_available_campaigns(cache=False),
                                 'cards': get_available_cards(cache=False),
                                 'branches': branches,

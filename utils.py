@@ -137,6 +137,63 @@ def get_git_branches(repository, cache=True):
     return BRANCHES_CACHE[repository]
 
 
+def pull_git_repository(
+        path: str, 
+        expected_remote: str
+    ) -> None:
+    """
+    Updates the content related to the GridpackFiles
+    repository.
+
+    Args:
+        path (str): Absolute path to the repository folder.
+        expected_remote (str): Expected remote origin for the repository.
+
+    Raises:
+        RuntimeError: If there is an issue executing git instructions or
+            if the remote origin is not the expected.
+    """
+    logger = logging.getLogger()
+    logger.debug("Pulling a repository located at: %s", path)
+
+    # Check the repository stored is the expected
+    stdout, stderr, code = run_command([
+        f"cd {path}",
+        f"git config --global --add safe.directory {path}",
+        "git remote get-url origin"
+    ])
+    if code != 0:
+        raise RuntimeError(
+            (
+                "Unable to check repository origin. "
+                "Please see the detailed stacktrace. "
+                f"Standard output: {stdout} - "
+                f"Standard error: {stderr}"
+            )
+        )
+    if stdout.strip() != expected_remote:
+        raise RuntimeError(
+            f"The remote origin doesn't match. Received: {stdout} - Expected: {expected_remote}"
+        )    
+
+    # Perform the update
+    stdout, stderr, code = run_command([
+        f"cd {path}",
+        f"git config --global --add safe.directory {path}",
+        "git checkout .",
+        "git pull",
+    ])
+    if code != 0:
+        raise RuntimeError(
+            (
+                "Unable to update the repository. "
+                "Please see the detailed stacktrace. "
+                f"Standard output: {stdout} - "
+                f"Standard error: {stderr}"
+            )
+        )
+
+
 def get_available_campaigns(cache=True):
     """
     Get campaigns and campaign templates
