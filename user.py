@@ -36,7 +36,9 @@ class User():
         username = headers.get('Adfs-Login')
         email = headers.get('Adfs-Email')
         fullname = headers.get('Adfs-Fullname')
-        groups = set(x.strip().lower() for x in headers.get('Adfs-Group', '').split(';'))
+        groups_header: str = headers.get('Adfs-Group', '')
+        groups_header = groups_header.replace(',', ';')
+        groups = set(x.strip().lower() for x in groups_header.split(';'))
         user_info = {'username': username,
                      'name': fullname,
                      'email': email,
