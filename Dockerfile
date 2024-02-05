@@ -1,15 +1,19 @@
 # Build dependencies
 FROM python:3.11.7-alpine3.19@sha256:6aa46819a8ff43850e52f5ac59545b50c6d37ebd3430080421582af362afec97 AS build
+RUN apk update && apk upgrade
 
 WORKDIR /usr/app
 RUN python -m venv /usr/app/venv
 ENV PATH="/usr/app/venv/bin:$PATH"
 
 COPY requirements.txt .
+RUN pip install --upgrade pip setuptools wheel
 RUN pip install -r requirements.txt
 
 # Create image for deployment
 FROM python:3.11.7-alpine3.19@sha256:6aa46819a8ff43850e52f5ac59545b50c6d37ebd3430080421582af362afec97 AS backend
+RUN apk update && apk upgrade
+RUN pip install --upgrade pip setuptools wheel
 
 # Install Git - Required to update the Gridpack files repository
 RUN apk add git
