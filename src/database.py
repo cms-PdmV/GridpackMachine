@@ -4,9 +4,9 @@ Module that contains Database class
 import logging
 import time
 import json
-from src.tools.utils import clean_split
 from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError
+from src.tools.utils import clean_split
 
 
 class Database:
@@ -33,7 +33,9 @@ class Database:
                                       authMechanism='SCRAM-SHA-256')[Database.DATABASE_NAME]
         else:
             self.logger.debug('Using DB without username and password')
-            self.client = MongoClient(Database.DATABASE_HOST, Database.DATABASE_PORT)[Database.DATABASE_NAME]
+            self.client = MongoClient(
+                Database.DATABASE_HOST,
+                Database.DATABASE_PORT)[Database.DATABASE_NAME]
 
         self.gridpacks = self.client[self.COLLECTION_NAME]
 
@@ -58,7 +60,7 @@ class Database:
         """
         Load credentials from a JSON file
         """
-        with open(filename) as json_file:
+        with open(filename, encoding='utf-8') as json_file:
             credentials = json.load(json_file)
 
         logging.getLogger('logger').info('Setting credentials %s', filename)
@@ -135,9 +137,9 @@ class Database:
         """
         gridpacks = self.gridpacks.find({'condor_status': status})
         return list(gridpacks)
-    
+
     def get_gridpacks_by_archive(
-        self, 
+        self,
         archive: str,
         campaign: str,
         generator: str,

@@ -1,10 +1,16 @@
+"""
+This module builds the request fragment
+to be used in McM for a produced Gridpack.
+Configuration is taken via GridpackFiles
+repository.
+"""
 import os
+from os.path import join as path_join
 import json
 import logging
-from src.gridpack import Gridpack
 from environment import GRIDPACK_FILES_PATH
+from src.gridpack import Gridpack
 from src.tools.utils import get_indentation
-from os.path import join as path_join
 
 
 class FragmentBuilder():
@@ -16,7 +22,7 @@ class FragmentBuilder():
         self.imports_path = os.path.join(self.fragments_path, 'imports.json')
 
     def build_fragment(
-        self, 
+        self,
         gridpack
     ):
         dataset_dict = gridpack.get_dataset_dict()
@@ -27,7 +33,7 @@ class FragmentBuilder():
         self.logger.info('List of files for fragment builder: %s', ','.join(file_list))
         fragment = ''
         for file_name in file_list:
-            with open(path_join(self.fragments_path, file_name)) as input_file:
+            with open(path_join(self.fragments_path, file_name), encoding='utf-8') as input_file:
                 contents = input_file.read().strip()
 
             fragment += contents + '\n\n'
@@ -41,28 +47,17 @@ class FragmentBuilder():
             raise Exception(f'Could not find {path} as external LHE producer')
 
         self.logger.debug('Reading %s', path)
-        with open(path) as input_file:
+        with open(path, encoding='utf-8') as input_file:
             contents = input_file.read()
 
-        return '%s\n' % (contents.strip())  # Add newline to the end of the contents
-
-    def get_hadronizer(self, generator):
-        path = os.path.join(self.templates_path, f'{generator}.dat')
-        if not os.path.exists(path):
-            raise Exception(f'Could not find {path} as hadronizer')
-
-        self.logger.debug('Reading %s', path)
-        with open(path) as input_file:
-            contents = input_file.read()
-
-        return '%s\n' % (contents.strip())  # Add newline to the end of the contents
+        return f'{contents.strip()}\n' # Add newline to the end of the contents
 
     def fragment_replace(
-        self, 
-        fragment, 
+        self,
+        fragment,
         gridpack: Gridpack
     ):
-        with open(self.imports_path) as input_file:
+        with open(self.imports_path, encoding='utf-8') as input_file:
             import_dict = json.load(input_file)
 
         dataset_dict = gridpack.get_dataset_dict()

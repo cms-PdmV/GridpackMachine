@@ -1,3 +1,7 @@
+"""
+Implementation for Gridpacks
+related with Madgraph generator.
+"""
 import os
 import glob
 import pathlib
@@ -45,7 +49,7 @@ class MadgraphGridpack(Gridpack):
         run_card = self.get_run_card()
         self.logger.debug('Writing customized run card %s', output_file_name)
         self.logger.debug(run_card)
-        with open(output_file_name, 'w') as output_file:
+        with open(output_file_name, 'w', encoding='utf-8') as output_file:
             output_file.write(run_card)
 
     def get_customize_card(self):
@@ -74,7 +78,7 @@ class MadgraphGridpack(Gridpack):
         customize_card = self.get_customize_card()
         self.logger.debug('Writing customized card %s', output_file_name)
         self.logger.debug(customize_card)
-        with open(output_file_name, 'w') as output_file:
+        with open(output_file_name, 'w', encoding='utf-8') as output_file:
             output_file.write(customize_card)
 
     def prepare_job_archive(self):

@@ -6,10 +6,6 @@ import json
 import os
 from flask import Flask, send_file, request, make_response
 from flask_restful import Api
-from src.tools.scheduler import Scheduler
-from src.controller import Controller
-from src.gridpack import Gridpack
-from src.database import Database
 from environment import (
     GEN_REPOSITORY,
     MONGO_DB_HOST,
@@ -22,6 +18,8 @@ from environment import (
     HOST,
     PORT
 )
+from src.tools.scheduler import Scheduler
+from src.controller import Controller, Gridpack, Database
 from src.tools.user import User
 from src.tools.utils import include_gridpack_ids
 
@@ -31,7 +29,7 @@ app = Flask(__name__,
             template_folder="./frontend")
 api = Api(app)
 scheduler = Scheduler()
-controller = None
+controller = None #pylint: disable=invalid-name
 
 
 @app.route('/')
@@ -109,19 +107,19 @@ def force_mcm_request():
     """
     if not is_user_authorized():
         return output_text({'message': 'Unauthorized'}, code=403)
-    
+
     gridpack_id: str = request.args.get('gridpack_id', '')
     if not gridpack_id:
         return output_text(
             {'message': 'Please choose a Gridpack via request parameter "gridpack_id"'},
             code=400
         )
-    
+
     force_status = controller.force_request_for_gridpack(gridpack_id=gridpack_id)
     if isinstance(force_status, dict):
         return output_text(data=force_status, code=400)
-    
-    return output_text({'message': 'Request forced for %s' % gridpack_id})
+
+    return output_text({'message': f'Request forced for {gridpack_id}'})
 
 @app.route('/api/create', methods=['PUT'])
 def create_gridpack():
@@ -179,7 +177,7 @@ def create_approve_gridpack():
             return output_text({'message': error}, code=400)
 
         gridpack_id = controller.create(gridpack)
-        _ = controller.approve(gridpack_id)
+        controller.approve(gridpack_id)
         gridpack_ids.append(gridpack_id)
 
     scheduler.notify()
@@ -252,7 +250,7 @@ def delete_gridpack():
     gridpack_id = gridpack_dict.get('_id')
     if not gridpack_id:
         return output_text({'message': 'No ID'})
-    
+
     controller.delete(gridpack_id)
     scheduler.notify()
     return output_text({'message': 'OK'})
@@ -299,7 +297,7 @@ def get_run_card(gridpack_id):
             content=gridpack.get_run_card()
         )
         return output_text(
-            content, 
+            content,
             headers={'Content-Type': 'text/plain'}
         )
     except ValueError:
@@ -330,7 +328,7 @@ def get_customize_card(gridpack_id):
             content=gridpack.get_customize_card()
         )
         return output_text(
-            content, 
+            content,
             headers={'Content-Type': 'text/plain'}
         )
     except ValueError:
@@ -398,7 +396,7 @@ def set_app():
     """
     Set the required configuration to start.
     """
-    global controller
+    global controller #pylint: disable=global-statement
     setup_console_logging(DEBUG)
     Database.set_credentials(MONGO_DB_USER, MONGO_DB_PASSWORD)
     Database.set_host_port(MONGO_DB_HOST, MONGO_DB_PORT)
@@ -416,7 +414,7 @@ def main():
     if os.environ.get('WERKZEUG_RUN_MAIN') == 'true':
         set_scheduler()
         scheduler.start()
-    
+
     logger.info('Will run on %s:%s', HOST, PORT)
     try:
         app.run(host=HOST,

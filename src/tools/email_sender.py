@@ -1,6 +1,7 @@
 """
 Module that handles all email notifications
 """
+
 import smtplib
 import logging
 from email import encoders
@@ -53,9 +54,9 @@ class EmailSender:
         # Create a fancy email message
         message = MIMEMultipart()
         if not self.production:
-            message["Subject"] = "[Gridpack-DEV] %s" % (subject)
+            message["Subject"] = f"[Gridpack-DEV] {subject}"
         else:
-            message["Subject"] = "[Gridpack] %s" % (subject)
+            message["Subject"] = f"[Gridpack] {subject}"
 
         message["From"] = "PdmV Service Account <pdmvserv@cern.ch>"
         message["To"] = ", ".join(recipients)
@@ -71,7 +72,7 @@ class EmailSender:
                 file_name = path.split("/")[-1]
                 encoders.encode_base64(attachment)
                 attachment.add_header(
-                    "Content-Disposition", 'attachment; filename="%s"' % (file_name)
+                    "Content-Disposition", f'attachment; filename="{file_name}"'
                 )
                 message.attach(attachment)
 

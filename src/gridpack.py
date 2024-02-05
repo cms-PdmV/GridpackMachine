@@ -1,3 +1,8 @@
+"""
+This module defines the Gridpack
+schema and defines some methods 
+to validate and retrieve its data 
+"""
 import os
 import logging
 import shutil
@@ -12,8 +17,8 @@ from environment import (
     PRODUCTION
 )
 from src.tools.utils import (
-    get_available_campaigns, 
-    get_available_cards, 
+    get_available_campaigns,
+    get_available_cards,
     get_git_branches,
     check_append_path,
     wrap_into_singularity
@@ -60,6 +65,8 @@ class Gridpack():
             raise TypeError('Gridpack is an abstract class. Instantiate it with a subclass.')
 
         self.logger = logging.getLogger()
+        self.dataset_dict = None
+        self.campaign_dict = None
         self.data = data
 
     @staticmethod
@@ -69,10 +76,12 @@ class Gridpack():
         """
         generator = data['generator']
         if generator == "MadGraph5_aMCatNLO":
+            #pylint: disable=cyclic-import
             from src.generator.madgraph_gridpack import MadgraphGridpack
             return MadgraphGridpack(data)
 
         if generator == 'Powheg':
+            #pylint: disable=cyclic-import
             from src.generator.powheg_gridpack import PowhegGridpack
             return PowhegGridpack(data)
 
@@ -110,7 +119,7 @@ class Gridpack():
         generator = self.data['generator']
         if generator not in campaigns[campaign]['generators']:
             return f'Bad generator "{generator}"'
-        
+
         cards = get_available_cards()
         process = self.data['process']
         if process not in cards[generator]:
@@ -119,7 +128,7 @@ class Gridpack():
         dataset = self.data['dataset']
         if dataset not in cards[generator][process]:
             return f'Bad dataset "{dataset}"'
-        
+
         memory = self.data['job_memory']
         cores = self.data['job_cores']
         minimum_memory = cores * MEMORY_FACTOR_MB
@@ -159,19 +168,19 @@ class Gridpack():
 
     def get_condor_id(self):
         return self.data['condor_id']
-    
+
     def get_cores(self):
         return self.data.get(
             'job_cores',
             Gridpack.schema['job_cores']
         )
-    
+
     def get_memory(self):
         return self.data.get(
             'job_memory',
             Gridpack.schema['job_memory']
         )
-    
+
     def delete_cores_memory(self):
         """
         Removes the job cores and memory
@@ -180,14 +189,14 @@ class Gridpack():
         """
         self.data.pop('job_cores', '')
         self.data.pop('job_memory', '')
-    
+
     def get_gridpack_reused(self):
         """
         If this Gridpack is created based on another
         return its ID.
         """
         return self.data.get("gridpack_reused", "")
-    
+
     def get_absolute_path(self):
         """
         Return the absolute path to the output
@@ -196,11 +205,11 @@ class Gridpack():
         absolute_path: str = self.data.get("archive_absolute", "")
         archive_name: str = self.get("archive")
         if archive_name and not absolute_path:
-            # Set the absolute path 
+            # Set the absolute path
             # for the first time based on the produced filename.
             absolute_path = str(
                 check_append_path(
-                    root=self.get_remote_storage_path(), 
+                    root=self.get_remote_storage_path(),
                     relative=archive_name
                 )
             )
@@ -233,14 +242,14 @@ class Gridpack():
         """
         Return a dictionary from Cards directory
         """
-        if hasattr(self, 'dataset_dict'):
+        if self.dataset_dict:
             return self.dataset_dict
 
         dataset_name = self.data['dataset']
         cards_path = self.get_cards_path()
         dataset_dict_file = os.path.join(cards_path, f'{dataset_name}.json')
         self.logger.debug('Reading %s', dataset_dict_file)
-        with open(dataset_dict_file) as input_file:
+        with open(dataset_dict_file, encoding='utf-8') as input_file:
             dataset_dict = json.load(input_file)
 
         self.dataset_dict = dataset_dict
@@ -250,14 +259,14 @@ class Gridpack():
         """
         Return a dictionary from Campaigns directory
         """
-        if hasattr(self, 'campaign_dict'):
+        if self.campaign_dict:
             return self.campaign_dict
 
         campaign = self.data['campaign']
         campaign_path = self.get_campaign_path()
         campaign_dict_file = os.path.join(campaign_path, f'{campaign}.json')
         self.logger.debug('Reading %s', campaign_dict_file)
-        with open(campaign_dict_file) as input_file:
+        with open(campaign_dict_file, encoding='utf-8') as input_file:
             campaign_dict = json.load(input_file)
 
         self.campaign_dict = campaign_dict
@@ -310,7 +319,7 @@ class Gridpack():
         return job_files
 
     def __get_remote_storage_folder(
-            self, 
+            self,
             include_until: int = 3
         ) -> str:
         """
@@ -329,7 +338,7 @@ class Gridpack():
         gridpack_directory: str = GRIDPACK_DIRECTORY
         if PRODUCTION:
             gridpack_directory = "/eos/cms/store/group/phys_generator/cvmfs/gridpacks/PdmV/"
-        
+
         # Include the subpath
         subpath_elements = [
             self.get("campaign"),
@@ -350,11 +359,11 @@ class Gridpack():
         """
         store_into_subfolders: bool = self.data.get("store_into_subfolders", False)
         return (
-            self.__get_remote_storage_folder() 
-            if store_into_subfolders 
+            self.__get_remote_storage_folder()
+            if store_into_subfolders
             else self.__get_remote_storage_folder(include_until=1)
         )
-    
+
     def get_reusable_gridpack_path(self) -> pathlib.Path:
         """
         Retrieves the folder path of the potential 
@@ -370,14 +379,14 @@ class Gridpack():
                 is not defined.
         """
         dataset_dict: dict = self.get_dataset_dict()
-        reuse_gridpack: bool = dataset_dict.get('gridpack_submit') == False
+        reuse_gridpack: bool = dataset_dict.get('gridpack_submit') is False
         if not reuse_gridpack:
             raise AssertionError("It is not intended to reuse a Gridpack")
 
         process_and_file = dataset_dict.get('gridpack_path')
         if not process_and_file:
             raise ValueError("Gridpack path to reuse was not provided")
-        
+
         try:
             folder_path = check_append_path(
                 # Include until generator
@@ -386,7 +395,7 @@ class Gridpack():
             )
             return folder_path
         except (TypeError, ValueError) as pe:
-            raise ValueError(f"Error parsing path: {pe}")
+            raise ValueError(f"Error parsing path: {pe}") from pe
 
     def mkdir(self):
         """
@@ -441,7 +450,7 @@ class Gridpack():
         """
         # Initial file
         self.logger.debug('Reading file %s', input_file_name)
-        with open(input_file_name) as input_file:
+        with open(input_file_name, encoding='utf-8') as input_file:
             contents = input_file.read()
 
         # Append user settings
@@ -472,6 +481,7 @@ class Gridpack():
                    'export HOME=$(pwd)',
                    'export ORG_PWD=$(pwd)',
                    f'export NB_CORE={self.get_cores()}',
+                   #pylint: disable=line-too-long
                    f'wget https://github.com/{repository}/tarball/{genproductions} -O genproductions.tar.gz',
                    'tar -xzf genproductions.tar.gz',
                    f'GEN_FOLDER=$(ls -1 | grep {repository.replace("/", "-")}- | head -n 1)',
@@ -491,11 +501,11 @@ class Gridpack():
                    'echo ".t*z archives after gridpack_generation.sh:"',
                    'ls -lha *.t*z',
                    f'mv *{dataset_name}*.t*z $ORG_PWD']
-        
+
         # Prepare to run via singularity
         outside_index = 5
-        outside_singularity = command[:outside_index] 
-        inside_singularity = command[outside_index:] 
+        outside_singularity = command[:outside_index]
+        inside_singularity = command[outside_index:]
         wrapped = wrap_into_singularity(
             script_name=f'GRIDPACK_SINGULARITY_{self.get_id()}.sh',
             content=inside_singularity,
@@ -508,7 +518,7 @@ class Gridpack():
 
         script_path = os.path.join(self.local_dir(), script_name)
         self.logger.debug('Writing sh script to %s', script_path)
-        with open(script_path, 'w') as script_file:
+        with open(script_path, 'w', encoding='utf-8') as script_file:
             script_file.write('\n'.join(execution_script))
 
         os.system(f"chmod a+x {script_path}")
@@ -534,6 +544,7 @@ class Gridpack():
             f"RequestDisk            = {30 * DISK_FACTOR_KB_TO_GB}",
             'requirements            = (OpSysAndVer =?= "AlmaLinux9")',
             f'+AccountingGroup        = "{chosen_group}"',
+            #pylint: disable=line-too-long
             "leave_in_queue          = JobStatus == 4 && (CompletionDate =?= UNDEFINED || ((CurrentTime - CompletionDate) < 7200))",
             "queue",
         ]
@@ -541,7 +552,7 @@ class Gridpack():
         jds_name = f'GRIDPACK_{gridpack_id}.jds'
         jds_path = os.path.join(self.local_dir(), jds_name)
         self.logger.debug('Writing JDS to %s', jds_path)
-        with open(jds_path, 'w') as jds_file:
+        with open(jds_path, 'w', encoding='utf-8') as jds_file:
             jds_file.write('\n'.join(jds))
 
     def get_dataset_name(self):
@@ -552,6 +563,7 @@ class Gridpack():
         tune = self.data['tune']
         campaign_dict = self.get_campaign_dict()
         energy = float(campaign_dict.get('beam', 0) * 2)
+        #pylint: disable=consider-using-f-string
         energy = ('%.2f' % (energy / 1000)).rstrip('.0').replace('.', 'p')
         tune_energy = f'Tune{tune}_{energy}TeV'
         dataset_name = dataset.split('_')

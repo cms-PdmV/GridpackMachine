@@ -1,10 +1,25 @@
+"""
+GridpackMachine application controller.
+"""
 import time
 import logging
 import os
 import zipfile
 import pathlib
 import traceback
+from threading import Lock
 from typing import Optional, Union
+from environment import (GRIDPACK_FILES_PATH,
+                         GRIDPACK_FILES_REPOSITORY,
+                         GEN_REPOSITORY,
+                         SUBMISSION_HOST,
+                         SERVICE_ACCOUNT_USERNAME,
+                         SERVICE_ACCOUNT_PASSWORD,
+                         REMOTE_DIRECTORY,
+                         TICKETS_DIRECTORY,
+                         PRODUCTION,
+                         SERVICE_URL,
+                         EMAIL_AUTH)
 from src.database import Database
 from src.gridpack import Gridpack
 from src.tools.email_sender import EmailSender
@@ -18,19 +33,7 @@ from src.tools.utils import (clean_split,
                    get_latest_log_output_in_condor,
                    get_module_path,
                    retrieve_all_files_available)
-from environment import (GRIDPACK_FILES_PATH,
-                         GRIDPACK_FILES_REPOSITORY,
-                         GEN_REPOSITORY,
-                         SUBMISSION_HOST,
-                         SERVICE_ACCOUNT_USERNAME,
-                         SERVICE_ACCOUNT_PASSWORD,
-                         REMOTE_DIRECTORY,
-                         TICKETS_DIRECTORY,
-                         PRODUCTION,
-                         SERVICE_URL,
-                         EMAIL_AUTH)
 from src.tools.ssh_executor import SSHExecutor, HTCondorExecutor
-from threading import Lock
 from src.generator.fragment_builder import FragmentBuilder
 
 
@@ -149,7 +152,10 @@ class Controller():
 
         if self.gridpacks_to_create_requests:
             # Approve gridpacks
-            self.logger.info('Gridpacks to create requests: %s', ','.join(self.gridpacks_to_create_requests))
+            self.logger.info(
+                'Gridpacks to create requests: %s',
+                ','.join(self.gridpacks_to_create_requests)
+            )
             for gridpack_id in self.gridpacks_to_create_requests:
                 self.create_request_for_gridpack(gridpack_id)
 
@@ -195,7 +201,7 @@ class Controller():
                 'reusing old output files',
                 gridpack_id
             )
-            return 
+            return
         if not submit_or_reuse:
             self.logger.info('Checking if Gridpack %s can reuse old artifacts', gridpack_id)
             self.gridpacks_that_reuse_output.append(gridpack_id)
@@ -229,7 +235,7 @@ class Controller():
         self.logger.info(
             "Checking if reuse or submit Gridpack: %s",
             gridpack
-        )        
+        )
         try:
             _ = gridpack.get_reusable_gridpack_path()
             return False
@@ -309,17 +315,17 @@ class Controller():
                     f"whose file name complies with the regex: {reuse_gridpack_in.name}"
                 )
                 raise AssertionError(cause)
-            
+
             # Currently, just take the first, most recent, file
             gridpack_file_metadata: dict = gridpack_options[0]
             gridpack_file: pathlib.Path = gridpack_file_metadata.get("file_path")
-            
+
             # Find the Gridpack related to the output file
             requested_archive: str = gridpack_file.name
             requested_campaign: str = gridpack.get("campaign")
             requested_generator: str = gridpack.get("generator")
             requested_process: str = reuse_gridpack_in.parent.name
-            
+
             related_gridpacks = self.database.get_gridpacks_by_archive(
                 archive=requested_archive,
                 campaign=requested_campaign,
@@ -345,10 +351,10 @@ class Controller():
             gridpack.data['archive_absolute'] = str(gridpack_file)
             gridpack.data['archive'] = str(gridpack_file.name)
             gridpack.set_status('reused')
-            gridpack.add_history_entry(f'gridpack reused')
+            gridpack.add_history_entry('gridpack reused')
             gridpack.delete_cores_memory()
             self.database.update_gridpack(gridpack)
-            
+
             # Create a McM request for it
             self.gridpacks_to_create_requests.append(gridpack_id)
             self.send_reused_notification(gridpack=gridpack)
@@ -361,7 +367,7 @@ class Controller():
 
     def __process_failed_reuse(
             self,
-            gridpack: Gridpack, 
+            gridpack: Gridpack,
             error: Union[str, Exception]
         ):
         """
@@ -372,7 +378,7 @@ class Controller():
         error_message += f"Cause: {error}" if isinstance(error, str) else f"Error: {error}"
         self.logger.error(error_message, exc_info=True)
         gridpack.set_status('failed')
-        gridpack.add_history_entry(f'reuse failed')
+        gridpack.add_history_entry('reuse failed')
         gridpack.delete_cores_memory()
         self.database.update_gridpack(gridpack)
         self.send_failed_reused_notification(
@@ -406,27 +412,30 @@ class Controller():
         """
         gridpack_json = self.database.get_gridpack(gridpack_id=gridpack_id)
         if not gridpack_json:
-            msg = 'Cannot force a request for %s because it is not in database' % gridpack_id
+            msg = f'Cannot force a request for {gridpack_id} because it is not in database'
             self.logger.error(msg)
             return {'message': msg}
 
         gridpack = Gridpack.make(gridpack_json)
         if gridpack.get_status() != 'done':
-            msg = ('Cannot force a request for %s because its status is not done' % gridpack_id)
+            msg = f'Cannot force a request for {gridpack_id} because its status is not done'
             self.logger.error(msg)
             return {'message': msg}
-        
+
         if gridpack.get('prepid'):
-            msg = ('Cannot force a request for %s because it has already a valid request in McM' % gridpack_id)
+            msg = (
+                f'Cannot force a request for {gridpack_id} because '
+                 'it has already a valid request in McM'
+            )
             self.logger.error(msg)
             return {'message': msg}
-        
+
         self.logger.info('Forcing a request creation for %s', gridpack)
         gridpack.add_history_entry('force request')
         self.create_mcm_request(gridpack)
         self.database.update_gridpack(gridpack)
         return None
-    
+
     def get_original_gridpack(self, gridpack_id: str):
         """
         Returns the requested Gridpack or the information of the Gridpack
@@ -449,7 +458,7 @@ class Controller():
             raise ValueError(
                 f"There is no Gridpack linked to the ID: {gridpack_id}"
             )
-        
+
         gridpack: Gridpack = Gridpack.make(gridpack_json)
         original_id: str = gridpack.get_gridpack_reused()
         if not original_id:
@@ -465,7 +474,7 @@ class Controller():
                 f"Gridpack ID: {gridpack.get_id()}"
             )
             raise AssertionError(error_message)
-        
+
         original_gridpack: Gridpack = Gridpack.make(original_gridpack_json)
         return original_gridpack
 
@@ -531,7 +540,7 @@ class Controller():
             gridpack.prepare_script()
             gridpack.prepare_jds_file()
             self.logger.info('Done preparing:\n%s',
-                             os.popen('ls -l %s' % (gridpack.local_dir())).read())
+                             os.popen(f'ls -l {gridpack.local_dir()}').read())
 
             self.logger.info('Will prepare remote directory for %s', gridpack)
             # Prepare remote directory. Delete old one and create a new one
@@ -656,7 +665,9 @@ class Controller():
             ssh.download_file(f'{remote_directory}/error.log',
                               f'{local_directory}/error.log')
             # Get gridpack archive name
-            stdout, stderr, _ = ssh.execute_command([f'ls -1 {remote_directory}/*{dataset_name}*.t*z'])
+            stdout, stderr, _ = ssh.execute_command(
+                [f'ls -1 {remote_directory}/*{dataset_name}*.t*z']
+            )
             self.logger.debug(stdout)
             self.logger.debug(stderr)
             stdout = clean_split(stdout, '\n')
@@ -668,7 +679,11 @@ class Controller():
 
             if gridpack_archive:
                 gridpack_directory = gridpack.get_remote_storage_path()
-                self.logger.info('Copying gridpack %s/%s->%s', remote_directory, gridpack_archive, gridpack_directory)
+                self.logger.info(
+                    'Copying gridpack %s/%s->%s', 
+                    remote_directory,
+                    gridpack_archive, gridpack_directory
+                )
                 sync_command: str = (
                     'rsync -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" '
                     f'{remote_directory}/{gridpack_archive} '
@@ -801,7 +816,7 @@ class Controller():
         subject = f'Gridpack {gridpack_name} was submitted'
         recipients = [f'{user}@cern.ch' for user in gridpack.get_users()]
         emailer = EmailSender(
-            SERVICE_ACCOUNT_USERNAME, 
+            SERVICE_ACCOUNT_USERNAME,
             SERVICE_ACCOUNT_PASSWORD,
             EMAIL_AUTH,
             PRODUCTION
@@ -828,7 +843,7 @@ class Controller():
         subject = f'Gridpack {gridpack_name} is done'
         recipients = [f'{user}@cern.ch' for user in gridpack.get_users()]
         emailer = EmailSender(
-            SERVICE_ACCOUNT_USERNAME, 
+            SERVICE_ACCOUNT_USERNAME,
             SERVICE_ACCOUNT_PASSWORD,
             EMAIL_AUTH,
             PRODUCTION
@@ -873,8 +888,8 @@ class Controller():
             'This Gridpack used one that already existed\n'
         )
         body += gridpack_ref
-        body += f'A request in McM will be created\n'
-        body += f'For more details, please see\n'
+        body += 'A request in McM will be created\n'
+        body += 'For more details, please see\n'
         body += f'Gridpack job: {service_url}?_id={gridpack_id}\n'
         if files:
             body += 'You can find job files as an attachment.\n'
@@ -882,7 +897,7 @@ class Controller():
         subject = f'Gridpack {gridpack_name} is reusing artifacts from another Gridpack'
         recipients = [f'{user}@cern.ch' for user in gridpack.get_users()]
         emailer = EmailSender(
-            SERVICE_ACCOUNT_USERNAME, 
+            SERVICE_ACCOUNT_USERNAME,
             SERVICE_ACCOUNT_PASSWORD,
             EMAIL_AUTH,
             PRODUCTION
@@ -890,8 +905,8 @@ class Controller():
         emailer.send(subject, body, recipients, files)
 
     def send_failed_reused_notification(
-            self, 
-            gridpack: Gridpack, 
+            self,
+            gridpack: Gridpack,
             cause: str
         ):
         """
@@ -905,7 +920,6 @@ class Controller():
         dataset = gridpack_dict.get('dataset')
         gridpack_id = gridpack.get_id()
         gridpack_name = f'{campaign} {dataset} {generator}'
-        service_url = SERVICE_URL
 
         body = 'Hello,\n\n'
         body += (
@@ -913,13 +927,13 @@ class Controller():
             'could not reuse output artifacts from old Gridpacks and therefore it failed.\n'
         )
         body += f'{cause}\n'
-        body += f'For more details, please see\n'
-        body += f'Gridpack job: {service_url}?_id={gridpack_id}\n'
+        body += 'For more details, please see\n'
+        body += 'Gridpack job: {service_url}?_id={gridpack_id}\n'
 
         subject = f'Gridpack {gridpack_name} failed to reuse artifacts from another Gridpack'
         recipients = [f'{user}@cern.ch' for user in gridpack.get_users()]
         emailer = EmailSender(
-            SERVICE_ACCOUNT_USERNAME, 
+            SERVICE_ACCOUNT_USERNAME,
             SERVICE_ACCOUNT_PASSWORD,
             EMAIL_AUTH,
             PRODUCTION
@@ -941,13 +955,17 @@ class Controller():
         body = 'Hello,\n\n'
         body += (
             f'Gridpack {gridpack_name} ({gridpack_id}) does not have a valid output file '
-            'to include in the McM request fragment. Therefore, no McM request is going to be created.\n'
+            'to include in the McM request fragment. '
+            'Therefore, no McM request is going to be created.\n'
         )
         body += f'Gridpack job: {service_url}?_id={gridpack_id}\n'
-        subject = f'Gridpack {gridpack_name} failed to retrieve the output file to create a McM request'
+        subject = (
+            f'Gridpack {gridpack_name} failed to retrieve '
+            'the output file to create a McM request'
+        )
         recipients = [f'{user}@cern.ch' for user in gridpack.get_users()]
         emailer = EmailSender(
-            SERVICE_ACCOUNT_USERNAME, 
+            SERVICE_ACCOUNT_USERNAME,
             SERVICE_ACCOUNT_PASSWORD,
             EMAIL_AUTH,
             PRODUCTION
@@ -975,7 +993,7 @@ class Controller():
         subject = f'Gridpack {gridpack_name} job failed'
         recipients = [f'{user}@cern.ch' for user in gridpack.get_users()]
         emailer = EmailSender(
-            SERVICE_ACCOUNT_USERNAME, 
+            SERVICE_ACCOUNT_USERNAME,
             SERVICE_ACCOUNT_PASSWORD,
             EMAIL_AUTH,
             PRODUCTION

@@ -1,3 +1,8 @@
+"""
+This module wraps some auxiliary functions
+to check job statuses in HTCondor, query GitHub,
+handle strings, pulling repositories, among others.
+"""
 import os
 import json
 import logging
@@ -46,12 +51,12 @@ def run_command(command):
     if isinstance(command, list):
         command = '\n'.join(command)
 
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
-    stdout, stderr = process.communicate()
-    code = process.returncode
-    stdout = stdout.decode('utf-8') if stdout is not None else None
-    stderr = stderr.decode('utf-8') if stderr is not None else None
-    return stdout, stderr, code
+    with subprocess.Popen(command, shell=True, stdout=subprocess.PIPE) as process:
+        stdout, stderr = process.communicate()
+        code = process.returncode
+        stdout = stdout.decode('utf-8') if stdout is not None else None
+        stderr = stderr.decode('utf-8') if stderr is not None else None
+        return stdout, stderr, code
 
 
 def get_jobs_in_condor(ssh=None):
@@ -60,6 +65,8 @@ def get_jobs_in_condor(ssh=None):
     Return a dictionary where key is job id and value is status (IDLE, RUN, ...)
     """
     cmd = 'condor_q -af:h ClusterId JobStatus Cmd'
+    logger = logging.getLogger()
+
     if ssh:
         stdout, stderr, exit_code = ssh.execute_command(cmd)
     else:
@@ -67,9 +74,8 @@ def get_jobs_in_condor(ssh=None):
 
     if exit_code != 0:
         logger.error('HTCondor is failing (%s):\n%s\n%s', exit_code, stdout, stderr)
-        raise Exception('HTCondor status check returned %s', exit_code)
+        raise Exception(f'HTCondor status check returned {exit_code}')
 
-    logger = logging.getLogger()
     lines = stdout.split('\n')
     if not lines or 'ClusterId JobStatus Cmd' not in lines[0]:
         logger.error('HTCondor is failing (%s):\n%s\n%s', exit_code, stdout, stderr)
@@ -109,7 +115,7 @@ def get_latest_log_output_in_condor(gridpack, ssh=None):
                 'Its ID must not be zero'
             )
         )
-    
+
     cmd = f"condor_ssh_to_job {condor_id} 'cat _condor_stdout' > {generation_log_file}"
     if ssh:
         stdout, stderr, exit_code = ssh.execute_command(cmd)
@@ -118,7 +124,7 @@ def get_latest_log_output_in_condor(gridpack, ssh=None):
 
     if exit_code != 0:
         logger.error('HTCondor is failing (%s):\n%s\n%s', exit_code, stdout, stderr)
-        raise Exception('HTCondor status check returned %s', exit_code)
+        raise Exception(f'HTCondor status check returned {exit_code}')
 
 
 def get_git_branches(repository, cache=True):
@@ -140,7 +146,7 @@ def get_git_branches(repository, cache=True):
 
 
 def pull_git_repository(
-        path: str, 
+        path: str,
         expected_remote: str
     ) -> None:
     """
@@ -176,7 +182,7 @@ def pull_git_repository(
     if stdout.strip() != expected_remote:
         raise RuntimeError(
             f"The remote origin doesn't match. Received: {stdout} - Expected: {expected_remote}"
-        )    
+        )
 
     # Perform the update
     stdout, stderr, code = run_command([
@@ -200,7 +206,7 @@ def get_available_campaigns(cache=True):
     """
     Get campaigns and campaign templates
     """
-    global CAMPAIGNS_CACHE
+    global CAMPAIGNS_CACHE #pylint: disable=global-statement
     if not cache or not CAMPAIGNS_CACHE:
         CAMPAIGNS_CACHE = {}
         campaigns_dir = os.path.join(GRIDPACK_FILES_PATH, 'Campaigns')
@@ -208,7 +214,7 @@ def get_available_campaigns(cache=True):
         for name in campaigns:
             campaign_path = os.path.join(campaigns_dir, name)
             generators = [g for g in listdir(campaign_path) if isdir(path_join(campaign_path, g))]
-            with open(path_join(campaign_path, f'{name}.json')) as campaign_json:
+            with open(path_join(campaign_path, f'{name}.json'), encoding='utf-8') as campaign_json:
                 campaign_dict = json.load(campaign_json)
 
             CAMPAIGNS_CACHE[name] = {'generators': generators,
@@ -221,7 +227,7 @@ def get_available_cards(cache=True):
     """
     Get generators, processes and datasets
     """
-    global CARDS_CACHE
+    global CARDS_CACHE #pylint: disable=global-statement
     if not cache or not CARDS_CACHE:
         CARDS_CACHE = {}
         cards_dir = os.path.join(GRIDPACK_FILES_PATH, 'Cards')
@@ -241,14 +247,14 @@ def get_available_tunes(cache=True):
     """
     Get list of available tunes
     """
-    global TUNES_CACHE
+    global TUNES_CACHE #pylint: disable=global-statement
     if not cache or not TUNES_CACHE:
         imports_path = os.path.join(GRIDPACK_FILES_PATH, 'Fragments', 'imports.json')
         if not os.path.isfile(imports_path):
             TUNES_CACHE = []
             return TUNES_CACHE
 
-        with open(imports_path) as imports_file:
+        with open(imports_path, encoding='utf-8') as imports_file:
             imports = json.load(imports_file)
 
         TUNES_CACHE = sorted(list(set(imports.get('tune', []))))
@@ -270,7 +276,7 @@ def get_indentation(phrase, text):
 
 
 def include_gridpack_ids(
-    gridpack_id: str, 
+    gridpack_id: str,
     effective_gridpack_id: str,
     content: str
 ):
@@ -403,15 +409,15 @@ def retrieve_all_files_available(
                 )
                 files_content["last_modification_date"] = last_date_unix
                 files_parsed_content.append(files_content)
-        
+
         result[folder_path] = files_parsed_content
 
     return result
 
 
 def wrap_into_singularity(
-        script_name: str, 
-        content: list, 
+        script_name: str,
+        content: list,
         desired_os: str,
 ) -> list:
     """
@@ -438,10 +444,10 @@ def wrap_into_singularity(
     ]
     # Execution command
     singularity_run = (
-        'singularity run ' 
+        'singularity run '
         '-B /afs -B /cvmfs -B /etc/grid-security -B /etc/pki/ca-trust '
         '--no-home /cvmfs/unpacked.cern.ch/registry.hub.docker.com/cmssw/$CONTAINER_NAME '
-        '$(echo $(pwd)/%s)' % (script_name)
+        f'$(echo $(pwd)/{script_name})'
     )
     wrapper_close = [
         '',
@@ -452,13 +458,13 @@ def wrap_into_singularity(
         f'chmod +x {script_name}',
         '',
         '# Check the proper tag for the architectue',
-        'if [ -e "%s/%s:amd64" ]; then' % (container_path, desired_os),
-        '  CONTAINER_NAME="%s:amd64"' % (desired_os),
-        'elif [ -e "%s/%s:x86_64" ]; then' % (container_path, desired_os),
-        '  CONTAINER_NAME="%s:x86_64"' % (desired_os),
+        f'if [ -e "{container_path}/{desired_os}:amd64" ]; then',
+        f'  CONTAINER_NAME="{desired_os}:amd64"',
+        f'elif [ -e "{container_path}/{desired_os}:x86_64" ]; then',
+        f'  CONTAINER_NAME="{desired_os}:x86_64"',
         'else',
-            '  echo "Could not find amd64 or x86_64 for %s"' % (desired_os),
-            '  exit 1',
+            f'  echo "Could not find amd64 or x86_64 for {desired_os}"',
+             '  exit 1',
         'fi',
         '',
         '# Running into a singularity container',

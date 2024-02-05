@@ -3,12 +3,11 @@ Module that handles all SSH operations - both ssh and ftp
 and operations related to HTCondor involving the execution of remote
 commands over SSH.
 """
-import json
 import time
 import logging
 from io import BytesIO
-from environment import USE_HTCONDOR_CMS_CAF
 import paramiko
+from environment import USE_HTCONDOR_CMS_CAF
 
 
 class SSHExecutor():
@@ -229,7 +228,7 @@ class HTCondorExecutor(SSHExecutor):
         if USE_HTCONDOR_CMS_CAF:
             self.logger.info('HTCondor nodes: Running command to CMS CAF')
             return self.ENABLE_CMS_CAF_ENV
-        
+
         return ''
 
 
@@ -241,7 +240,7 @@ class HTCondorExecutor(SSHExecutor):
         """
         if USE_HTCONDOR_CMS_CAF:
             return HTCondorExecutor.CMS_CAF_GROUP
-        
+
         return HTCondorExecutor.LXBATCH_PRIORITY_GROUP
 
 
@@ -261,15 +260,15 @@ class HTCondorExecutor(SSHExecutor):
                 f"Received: {type(command)}"
             )
             raise ValueError(msg)
-        
+
         if not enable_env:
-            return super(HTCondorExecutor, self).execute_command(command=command)
+            return super().execute_command(command=command)
 
         if isinstance(command, list):
             command_and_env = command.copy()
             command_and_env.insert(0, enable_env)
-            return super(HTCondorExecutor, self).execute_command(command=command_and_env)
-    
+            return super().execute_command(command=command_and_env)
+
         # Complete the string command
         command_and_env = '; '.join([enable_env, command])
-        return super(HTCondorExecutor, self).execute_command(command=command_and_env)
+        return super().execute_command(command=command_and_env)

@@ -8,8 +8,8 @@ Attributes:
         internal tick. This processes the submission queue,
         sending new jobs or retriving its status.
     REPOSITORY_UPDATE_INTERVAL (int): Interval window (in seconds) to perform an automatic
-        update for the GridpackFiles repository. This repository has all the configs required to generate
-        Gridpacks.
+        update for the GridpackFiles repository. This repository has all the configs
+        required to generate Gridpacks.
     SERVICE_URL (str): This is the url for the GridpackMachine application.
         For example: "https://cms-pdmv-prod.web.cern.ch/gridpack"
         It is used to include the application's url into email notifications.
@@ -32,8 +32,9 @@ Attributes:
     AUTHORIZED (str): Authorized roles enabled to submit Gridpack jobs.
         The format for this field is the following: <ROLE_1>,<ROLE_2>,...,<ROLE_N>
     GRIDPACK_DIRECTORY (str): This is the absolute folder path (into AFS or EOS) that stores
-        the produced Gridpack after the HTCondor job finishes. Please remember this value is overwritten
-        into a special path in /eos/ for the production environment.
+        the produced Gridpack after the HTCondor job finishes. 
+        Please remember this value is overwritten into a special
+        path in /eos/ for the production environment.
     GRIDPACK_FILES_PATH (str): This is the absolute folder path (into AFS or EOS)
         where the GridpackFiles repository is located.
     GRIDPACK_FILES_REPOSITORY (str): Remote origin for the GridpackFiles repository.
@@ -41,9 +42,10 @@ Attributes:
     PUBLIC_STREAM_FOLDER (str): This is the absolute folder path (into AFS or EOS),
         available for CMS users, where the Gridpack creation logs for running HTCondor jobs
         are transmitted.
-    USE_HTCONDOR_CMS_CAF (bool): If enabled, CMS CAF HTCondor nodes are going to be used
-        to submit Gridpack jobs.
-        More details are available at: https://batchdocs.web.cern.ch/local/specifics/CMS_CAF_tzero.html
+    USE_HTCONDOR_CMS_CAF (bool): If enabled, CMS CAF HTCondor
+        nodes are going to be used to submit Gridpack jobs.
+        More details are available at:
+        https://batchdocs.web.cern.ch/local/specifics/CMS_CAF_tzero.html
     PRODUCTION (bool): Enables the application to run in production.
     EMAIL_AUTH (bool): Send credentials when setting up the SMTP client.
     MONGO_DB_HOST (str): MongoDB host for opening a client session.
@@ -54,6 +56,7 @@ Attributes:
     PORT (int): Web server port.
     DEBUG (bool): Enables the DEBUG mode for the logger.
 """
+
 import os
 import inspect
 
