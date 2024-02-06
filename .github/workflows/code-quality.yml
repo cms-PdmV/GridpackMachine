@@ -1,4 +1,4 @@
-name: Pylint
+name: Code quality
 
 on:
   workflow_dispatch:
@@ -8,9 +8,9 @@ on:
     branches: [master]
 
 jobs:
-  build:
+  pylint:
     runs-on: ubuntu-latest
-    name: Get newest code and run pylint
+    name: Scan the code using pylint
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -31,3 +31,13 @@ jobs:
         run: |
           python3 -m pylint --version
           python3 -m pylint --fail-under=9.75 --fail-on=E --reports=y `find . -type d \( -path ./venv -o -path ./core_lib \) -prune -o -type f | grep .py$ | xargs`
+  black:
+    runs-on: ubuntu-latest
+    name: Check code's format using Black
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Run Black formatter
+        uses: psf/black@stable
