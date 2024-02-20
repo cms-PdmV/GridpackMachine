@@ -2,6 +2,9 @@
 FROM python:3.11.7-alpine3.19@sha256:6aa46819a8ff43850e52f5ac59545b50c6d37ebd3430080421582af362afec97 AS build
 RUN apk update && apk upgrade
 
+# Install Kerberos client and gcc for Python wrapper
+RUN apk add build-base && apk add krb5-dev 
+
 WORKDIR /usr/app
 RUN python -m venv /usr/app/venv
 ENV PATH="/usr/app/venv/bin:$PATH"
@@ -17,6 +20,9 @@ RUN pip install --upgrade pip setuptools wheel
 
 # Install Git - Required to update the Gridpack files repository
 RUN apk add git
+
+# Install the Kerberos client
+RUN apk add krb5-dev 
 
 # User and application folder
 RUN addgroup -g 1001 pdmv && adduser --disabled-password -u 1001 -G pdmv pdmv
