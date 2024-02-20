@@ -1,15 +1,13 @@
 """
 Module that handles all email notifications
 """
+
 import smtplib
 import logging
-import json
 from email import encoders
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
-
-from config import Config
 
 
 class EmailSender:
@@ -17,30 +15,24 @@ class EmailSender:
     Email Sender allows to send emails to users using CERN SMTP server
     """
 
-    def __init__(self, credentials):
+    def __init__(self, username, password, email_auth, production):
         self.logger = logging.getLogger()
-        self.credentials = credentials
+        self.username = username
+        self.password = password
+        self.email_auth = email_auth
+        self.production = production
         self.smtp = None
 
     def __setup_smtp(self):
         """
         Read credentials and connect to SMTP file
         """
-        if ":" not in self.credentials:
-            with open(self.credentials) as json_file:
-                credentials = json.load(json_file)
-        else:
-            credentials = {}
-            credentials["username"] = self.credentials.split(":")[0]
-            credentials["password"] = self.credentials.split(":")[1]
-
-        self.logger.info("Credentials loaded successfully: %s", credentials["username"])
         self.smtp = smtplib.SMTP(host="cernmx.cern.ch", port=25)
-        # self.smtp.connect()
         self.smtp.ehlo()
         self.smtp.starttls()
         self.smtp.ehlo()
-        # self.smtp.login(credentials['username'], credentials['password'])
+        if self.email_auth:
+            self.smtp.login(self.username, self.password)
 
     def __close_smtp(self):
         """
@@ -61,10 +53,10 @@ class EmailSender:
         ]
         # Create a fancy email message
         message = MIMEMultipart()
-        if Config.get("dev"):
-            message["Subject"] = "[Gridpack-DEV] %s" % (subject)
+        if not self.production:
+            message["Subject"] = f"[Gridpack-DEV] {subject}"
         else:
-            message["Subject"] = "[Gridpack] %s" % (subject)
+            message["Subject"] = f"[Gridpack] {subject}"
 
         message["From"] = "PdmV Service Account <pdmvserv@cern.ch>"
         message["To"] = ", ".join(recipients)
@@ -80,7 +72,7 @@ class EmailSender:
                 file_name = path.split("/")[-1]
                 encoders.encode_base64(attachment)
                 attachment.add_header(
-                    "Content-Disposition", 'attachment; filename="%s"' % (file_name)
+                    "Content-Disposition", f'attachment; filename="{file_name}"'
                 )
                 message.attach(attachment)
 

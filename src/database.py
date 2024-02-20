@@ -1,14 +1,13 @@
 """
 Module that contains Database class
 """
+
 import logging
 import time
 import json
-import os
-from utils import clean_split
-from typing import Optional
 from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError
+from src.tools.utils import clean_split
 
 
 class Database:
@@ -16,28 +15,31 @@ class Database:
     Database class represents MongoDB database
     It encapsulates underlying connection and exposes some convenience methods
     """
-    DATABASE_HOST = 'localhost'
+
+    DATABASE_HOST = "localhost"
     DATABASE_PORT = 27017
-    DATABASE_NAME = 'gridpacks'
-    COLLECTION_NAME = 'gridpacks'
+    DATABASE_NAME = "gridpacks"
+    COLLECTION_NAME = "gridpacks"
     USERNAME = None
     PASSWORD = None
 
     def __init__(self):
-        self.logger = logging.getLogger('logger')
-        db_host = os.environ.get('DB_HOST', Database.DATABASE_HOST)
-        db_port = os.environ.get('DB_PORT', Database.DATABASE_PORT)
+        self.logger = logging.getLogger("logger")
         if Database.USERNAME and Database.PASSWORD:
-            self.logger.debug('Using DB with username and password')
-            self.client = MongoClient(db_host,
-                                      db_port,
-                                      username=Database.USERNAME,
-                                      password=Database.PASSWORD,
-                                      authSource='admin',
-                                      authMechanism='SCRAM-SHA-256')[Database.DATABASE_NAME]
+            self.logger.debug("Using DB with username and password")
+            self.client = MongoClient(
+                host=Database.DATABASE_HOST,
+                port=Database.DATABASE_PORT,
+                username=Database.USERNAME,
+                password=Database.PASSWORD,
+                authSource="admin",
+                authMechanism="SCRAM-SHA-256",
+            )[Database.DATABASE_NAME]
         else:
-            self.logger.debug('Using DB without username and password')
-            self.client = MongoClient(db_host, db_port)[Database.DATABASE_NAME]
+            self.logger.debug("Using DB without username and password")
+            self.client = MongoClient(Database.DATABASE_HOST, Database.DATABASE_PORT)[
+                Database.DATABASE_NAME
+            ]
 
         self.gridpacks = self.client[self.COLLECTION_NAME]
 
@@ -50,22 +52,30 @@ class Database:
         cls.PASSWORD = password
 
     @classmethod
+    def set_host_port(cls, host, port):
+        """
+        Set database host and port
+        """
+        cls.DATABASE_HOST = host
+        cls.DATABASE_PORT = port
+
+    @classmethod
     def set_credentials_file(cls, filename):
         """
         Load credentials from a JSON file
         """
-        with open(filename) as json_file:
+        with open(filename, encoding="utf-8") as json_file:
             credentials = json.load(json_file)
 
-        logging.getLogger('logger').info('Setting credentials %s', filename)
-        cls.set_credentials(credentials['username'], credentials['password'])
+        logging.getLogger("logger").info("Setting credentials %s", filename)
+        cls.set_credentials(credentials["username"], credentials["password"])
 
     def create_gridpack(self, gridpack):
         """
         Add given gridpack to the database
         """
         gridpack_json = gridpack.get_json()
-        gridpack_json['last_update'] = int(time.time())
+        gridpack_json["last_update"] = int(time.time())
         try:
             return self.gridpacks.insert_one(gridpack_json)
         except DuplicateKeyError:
@@ -76,13 +86,13 @@ class Database:
         Update given gridpack in the database based on ID
         """
         gridpack_json = gridpack.get_json()
-        gridpack_json['last_update'] = int(time.time())
-        if '_id' not in gridpack_json:
-            self.logger.error('No _id in document')
+        gridpack_json["last_update"] = int(time.time())
+        if "_id" not in gridpack_json:
+            self.logger.error("No _id in document")
             return
 
         try:
-            self.gridpacks.replace_one({'_id': gridpack_json['_id']}, gridpack_json)
+            self.gridpacks.replace_one({"_id": gridpack_json["_id"]}, gridpack_json)
         except DuplicateKeyError:
             return
 
@@ -90,7 +100,7 @@ class Database:
         """
         Delete given gridpack from the database based on it's ID
         """
-        self.gridpacks.delete_one({'_id': gridpack.get_id()})
+        self.gridpacks.delete_one({"_id": gridpack.get_id()})
 
     def get_gridpack_count(self):
         """
@@ -102,7 +112,7 @@ class Database:
         """
         Fetch a gridpack with given ID from the database
         """
-        return self.gridpacks.find_one({'_id': gridpack_id})
+        return self.gridpacks.find_one({"_id": gridpack_id})
 
     def get_gridpacks(self, query_dict=None):
         """
@@ -112,7 +122,7 @@ class Database:
         if query_dict is None:
             query_dict = {}
 
-        gridpacks = self.gridpacks.find(query_dict).sort('_id', -1)
+        gridpacks = self.gridpacks.find(query_dict).sort("_id", -1)
         total_rows = gridpacks.count()
         return list(gridpacks), total_rows
 
@@ -121,7 +131,7 @@ class Database:
         Get list of gridpacks with given status
         """
         status = clean_split(status)
-        query = {'$or': [{'status': s} for s in status]}
+        query = {"$or": [{"status": s} for s in status]}
         gridpacks = self.gridpacks.find(query)
         return list(gridpacks)
 
@@ -129,15 +139,11 @@ class Database:
         """
         Get list of gridpacks with given HTCondor status
         """
-        gridpacks = self.gridpacks.find({'condor_status': status})
+        gridpacks = self.gridpacks.find({"condor_status": status})
         return list(gridpacks)
-    
+
     def get_gridpacks_by_archive(
-        self, 
-        archive: str,
-        campaign: str,
-        generator: str,
-        process: str
+        self, archive: str, campaign: str, generator: str, process: str
     ):
         """
         Get list of gridpacks that initially submit a batch
@@ -148,7 +154,7 @@ class Database:
                 a Gridpack.
             campaign (str): Name of the campaign related to the
                 desired Gridpacks.
-            generator (str | None): Generator related with the 
+            generator (str | None): Generator related with the
                 desired Gridpacks.
             process (str | None): Process related with the desired
                 Gridpacks.
@@ -159,7 +165,7 @@ class Database:
             "archive": archive,
             "campaign": campaign,
             "generator": generator,
-            "process": process
+            "process": process,
         }
         gridpacks, _ = self.get_gridpacks(query_dict=query)
         return gridpacks

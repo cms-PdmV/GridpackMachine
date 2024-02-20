@@ -1,3 +1,9 @@
+"""
+This module wraps some auxiliary functions
+to check job statuses in HTCondor, query GitHub,
+handle strings, pulling repositories, among others.
+"""
+
 import os
 import json
 import logging
@@ -5,32 +11,36 @@ import subprocess
 import pathlib
 import re
 import datetime
+import importlib.util
+from typing import Optional
 from os import listdir
 from os.path import isdir
 from os.path import join as path_join
-from connection_wrapper import ConnectionWrapper
-from ssh_executor import SSHExecutor
-from config import Config
+from src.tools.connection_wrapper import ConnectionWrapper
+from src.tools.ssh_executor import SSHExecutor
+from environment import PUBLIC_STREAM_FOLDER, GRIDPACK_FILES_PATH
 
 
-CONDOR_STATUS = {'0': 'UNEXPLAINED',
-                 '1': 'IDLE',
-                 '2': 'RUN',
-                 '3': 'REMOVED',
-                 '4': 'DONE',
-                 '5': 'HOLD',
-                 '6': 'SUBMISSION ERROR'}
+CONDOR_STATUS = {
+    "0": "UNEXPLAINED",
+    "1": "IDLE",
+    "2": "RUN",
+    "3": "REMOVED",
+    "4": "DONE",
+    "5": "HOLD",
+    "6": "SUBMISSION ERROR",
+}
 
 
 BRANCHES_CACHE = {}
 CAMPAIGNS_CACHE = {}
 CARDS_CACHE = {}
 TUNES_CACHE = []
-UNABLE_CHECK_FILES = re.compile(r'ls: cannot')
+UNABLE_CHECK_FILES = re.compile(r"ls: cannot")
 EMPTY_SPACE = " "
 
 
-def clean_split(string, separator=',', maxsplit=-1):
+def clean_split(string, separator=",", maxsplit=-1):
     """
     Split a string by separator and collect only non-empty values
     """
@@ -42,14 +52,14 @@ def run_command(command):
     Run a bash command and return stdout, stderr and exit code
     """
     if isinstance(command, list):
-        command = '\n'.join(command)
+        command = "\n".join(command)
 
-    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
-    stdout, stderr = process.communicate()
-    code = process.returncode
-    stdout = stdout.decode('utf-8') if stdout is not None else None
-    stderr = stderr.decode('utf-8') if stderr is not None else None
-    return stdout, stderr, code
+    with subprocess.Popen(command, shell=True, stdout=subprocess.PIPE) as process:
+        stdout, stderr = process.communicate()
+        code = process.returncode
+        stdout = stdout.decode("utf-8") if stdout is not None else None
+        stderr = stderr.decode("utf-8") if stderr is not None else None
+        return stdout, stderr, code
 
 
 def get_jobs_in_condor(ssh=None):
@@ -57,26 +67,27 @@ def get_jobs_in_condor(ssh=None):
     Fetch jobs from HTCondor
     Return a dictionary where key is job id and value is status (IDLE, RUN, ...)
     """
-    cmd = 'condor_q -af:h ClusterId JobStatus Cmd'
+    cmd = "condor_q -af:h ClusterId JobStatus Cmd"
+    logger = logging.getLogger()
+
     if ssh:
         stdout, stderr, exit_code = ssh.execute_command(cmd)
     else:
         stdout, stderr, exit_code = run_command(cmd)
 
     if exit_code != 0:
-        logger.error('HTCondor is failing (%s):\n%s\n%s', exit_code, stdout, stderr)
-        raise Exception('HTCondor status check returned %s', exit_code)
+        logger.error("HTCondor is failing (%s):\n%s\n%s", exit_code, stdout, stderr)
+        raise Exception(f"HTCondor status check returned {exit_code}")
 
-    logger = logging.getLogger()
-    lines = stdout.split('\n')
-    if not lines or 'ClusterId JobStatus Cmd' not in lines[0]:
-        logger.error('HTCondor is failing (%s):\n%s\n%s', exit_code, stdout, stderr)
-        raise Exception('HTCondor is not working')
+    lines = stdout.split("\n")
+    if not lines or "ClusterId JobStatus Cmd" not in lines[0]:
+        logger.error("HTCondor is failing (%s):\n%s\n%s", exit_code, stdout, stderr)
+        raise Exception("HTCondor is not working")
 
     jobs_dict = {}
     lines = lines[1:]
     for line in lines:
-        if 'GRIDPACK_' not in line:
+        if "GRIDPACK_" not in line:
             continue
 
         columns = line.split()
@@ -85,9 +96,9 @@ def get_jobs_in_condor(ssh=None):
 
         job_id = columns[0]
         job_status = columns[1]
-        jobs_dict[job_id] = CONDOR_STATUS.get(job_status, 'REMOVED')
+        jobs_dict[job_id] = CONDOR_STATUS.get(job_status, "REMOVED")
 
-    logger.info('Job status in HTCondor: %s', json.dumps(jobs_dict))
+    logger.info("Job status in HTCondor: %s", json.dumps(jobs_dict))
     return jobs_dict
 
 
@@ -97,17 +108,19 @@ def get_latest_log_output_in_condor(gridpack, ssh=None):
     """
     logger = logging.getLogger()
     condor_id = gridpack.get_condor_id()
-    public_stream_folder = Config.get('public_stream_folder')
-    generation_log_file = f'{public_stream_folder}/GRIDPACK_GENERATION_{gridpack.get_id()}.log'
+    public_stream_folder = PUBLIC_STREAM_FOLDER
+    generation_log_file = (
+        f"{public_stream_folder}/GRIDPACK_GENERATION_{gridpack.get_id()}.log"
+    )
 
     if condor_id == 0:
         raise AssertionError(
             (
-                'This Gridpack should be already submitted and running. '
-                'Its ID must not be zero'
+                "This Gridpack should be already submitted and running. "
+                "Its ID must not be zero"
             )
         )
-    
+
     cmd = f"condor_ssh_to_job {condor_id} 'cat _condor_stdout' > {generation_log_file}"
     if ssh:
         stdout, stderr, exit_code = ssh.execute_command(cmd)
@@ -115,8 +128,8 @@ def get_latest_log_output_in_condor(gridpack, ssh=None):
         stdout, stderr, exit_code = run_command(cmd)
 
     if exit_code != 0:
-        logger.error('HTCondor is failing (%s):\n%s\n%s', exit_code, stdout, stderr)
-        raise Exception('HTCondor status check returned %s', exit_code)
+        logger.error("HTCondor is failing (%s):\n%s\n%s", exit_code, stdout, stderr)
+        raise Exception(f"HTCondor status check returned {exit_code}")
 
 
 def get_git_branches(repository, cache=True):
@@ -124,36 +137,102 @@ def get_git_branches(repository, cache=True):
     Return list of branches in the repostory
     """
     if not cache or repository not in BRANCHES_CACHE:
-        headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64)'}
-        with ConnectionWrapper('https://api.github.com') as conn:
-            response = conn.api('GET', f'/repos/{repository}/branches', headers=headers)
+        headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)"}
+        with ConnectionWrapper("https://api.github.com") as conn:
+            response = conn.api("GET", f"/repos/{repository}/branches", headers=headers)
 
-        response = json.loads(response.decode('utf-8'))
+        response = json.loads(response.decode("utf-8"))
         logger = logging.getLogger()
-        branches = [b['name'] for b in response if b.get('name')]
-        logger.debug('Found %s branches in %s', len(branches), repository)
+        branches = [b["name"] for b in response if b.get("name")]
+        logger.debug("Found %s branches in %s", len(branches), repository)
         BRANCHES_CACHE[repository] = branches
 
     return BRANCHES_CACHE[repository]
+
+
+def pull_git_repository(path: str, expected_remote: str) -> None:
+    """
+    Updates the content related to the GridpackFiles
+    repository.
+
+    Args:
+        path (str): Absolute path to the repository folder.
+        expected_remote (str): Expected remote origin for the repository.
+
+    Raises:
+        RuntimeError: If there is an issue executing git instructions or
+            if the remote origin is not the expected.
+    """
+    logger = logging.getLogger()
+    logger.debug("Pulling a repository located at: %s", path)
+
+    # Check the repository stored is the expected
+    stdout, stderr, code = run_command(
+        [
+            f"cd {path}",
+            f"git config --global --add safe.directory {path}",
+            "git remote get-url origin",
+        ]
+    )
+    if code != 0:
+        raise RuntimeError(
+            (
+                "Unable to check repository origin. "
+                "Please see the detailed stacktrace. "
+                f"Standard output: {stdout} - "
+                f"Standard error: {stderr}"
+            )
+        )
+    if stdout.strip() != expected_remote:
+        raise RuntimeError(
+            f"The remote origin doesn't match. Received: {stdout} - Expected: {expected_remote}"
+        )
+
+    # Perform the update
+    stdout, stderr, code = run_command(
+        [
+            f"cd {path}",
+            f"git config --global --add safe.directory {path}",
+            "git checkout .",
+            "git pull",
+        ]
+    )
+    if code != 0:
+        raise RuntimeError(
+            (
+                "Unable to update the repository. "
+                "Please see the detailed stacktrace. "
+                f"Standard output: {stdout} - "
+                f"Standard error: {stderr}"
+            )
+        )
 
 
 def get_available_campaigns(cache=True):
     """
     Get campaigns and campaign templates
     """
-    global CAMPAIGNS_CACHE
+    global CAMPAIGNS_CACHE  # pylint: disable=global-statement
     if not cache or not CAMPAIGNS_CACHE:
         CAMPAIGNS_CACHE = {}
-        campaigns_dir = os.path.join(Config.get('gridpack_files_path'), 'Campaigns')
-        campaigns = [c for c in listdir(campaigns_dir) if isdir(path_join(campaigns_dir, c))]
+        campaigns_dir = os.path.join(GRIDPACK_FILES_PATH, "Campaigns")
+        campaigns = [
+            c for c in listdir(campaigns_dir) if isdir(path_join(campaigns_dir, c))
+        ]
         for name in campaigns:
             campaign_path = os.path.join(campaigns_dir, name)
-            generators = [g for g in listdir(campaign_path) if isdir(path_join(campaign_path, g))]
-            with open(path_join(campaign_path, f'{name}.json')) as campaign_json:
+            generators = [
+                g for g in listdir(campaign_path) if isdir(path_join(campaign_path, g))
+            ]
+            with open(
+                path_join(campaign_path, f"{name}.json"), encoding="utf-8"
+            ) as campaign_json:
                 campaign_dict = json.load(campaign_json)
 
-            CAMPAIGNS_CACHE[name] = {'generators': generators,
-                                     'tune': campaign_dict.get('tune', '')}
+            CAMPAIGNS_CACHE[name] = {
+                "generators": generators,
+                "tune": campaign_dict.get("tune", ""),
+            }
 
     return CAMPAIGNS_CACHE
 
@@ -162,17 +241,25 @@ def get_available_cards(cache=True):
     """
     Get generators, processes and datasets
     """
-    global CARDS_CACHE
+    global CARDS_CACHE  # pylint: disable=global-statement
     if not cache or not CARDS_CACHE:
         CARDS_CACHE = {}
-        cards_dir = os.path.join(Config.get('gridpack_files_path'), 'Cards')
+        cards_dir = os.path.join(GRIDPACK_FILES_PATH, "Cards")
         generators = [c for c in listdir(cards_dir) if isdir(path_join(cards_dir, c))]
         for generator in generators:
             generator_path = os.path.join(cards_dir, generator)
-            processes = [p for p in listdir(generator_path) if isdir(path_join(generator_path, p))]
+            processes = [
+                p
+                for p in listdir(generator_path)
+                if isdir(path_join(generator_path, p))
+            ]
             for process in processes:
                 process_path = os.path.join(generator_path, process)
-                datasets = [d for d in listdir(process_path) if isdir(path_join(process_path, d))]
+                datasets = [
+                    d
+                    for d in listdir(process_path)
+                    if isdir(path_join(process_path, d))
+                ]
                 CARDS_CACHE.setdefault(generator, {})[process] = datasets
 
     return CARDS_CACHE
@@ -182,17 +269,17 @@ def get_available_tunes(cache=True):
     """
     Get list of available tunes
     """
-    global TUNES_CACHE
+    global TUNES_CACHE  # pylint: disable=global-statement
     if not cache or not TUNES_CACHE:
-        imports_path = os.path.join(Config.get('gridpack_files_path'), 'Fragments', 'imports.json')
+        imports_path = os.path.join(GRIDPACK_FILES_PATH, "Fragments", "imports.json")
         if not os.path.isfile(imports_path):
             TUNES_CACHE = []
             return TUNES_CACHE
 
-        with open(imports_path) as imports_file:
+        with open(imports_path, encoding="utf-8") as imports_file:
             imports = json.load(imports_file)
 
-        TUNES_CACHE = sorted(list(set(imports.get('tune', []))))
+        TUNES_CACHE = sorted(list(set(imports.get("tune", []))))
 
     return TUNES_CACHE
 
@@ -202,7 +289,7 @@ def get_indentation(phrase, text):
     Return indentation (number of spaces in the beginning of the line) for the
     first line in text that has a "phrase"
     """
-    lines = [l for l in text.split('\n') if phrase in l]
+    lines = [l for l in text.split("\n") if phrase in l]
     if not lines:
         return 0
 
@@ -210,11 +297,7 @@ def get_indentation(phrase, text):
     return len(line) - len(line.lstrip())
 
 
-def include_gridpack_ids(
-    gridpack_id: str, 
-    effective_gridpack_id: str,
-    content: str
-):
+def include_gridpack_ids(gridpack_id: str, effective_gridpack_id: str, content: str):
     """
     For content like text files, include the Gridpack ID
     that is related to it.
@@ -222,8 +305,7 @@ def include_gridpack_ids(
     gridpack_label: str = (
         f"# Gridpack that reused this artifact: {gridpack_id}"
         if gridpack_id != effective_gridpack_id
-        else
-        ""
+        else ""
     )
     labeled_content: str = f"# Related to Gridpack ID: {effective_gridpack_id}\n"
     if gridpack_label:
@@ -232,6 +314,22 @@ def include_gridpack_ids(
     labeled_content += content
 
     return labeled_content
+
+
+def get_module_path(module: str) -> Optional[pathlib.Path]:
+    """
+    Retrieves the absolute path for the desired module if exists.
+
+    Args:
+        module (str): Module name to look.
+    Returns:
+        pathlib.Path | None: Module's path if it exists.
+    """
+    spec = importlib.util.find_spec(module)
+    if not spec:
+        return None
+    return pathlib.Path(spec.origin)
+
 
 def check_append_path(root: str, relative: str) -> pathlib.Path:
     """
@@ -242,7 +340,7 @@ def check_append_path(root: str, relative: str) -> pathlib.Path:
     Args:
         root (str): Root absolute path
         relative (str): Relative path to be appended.
-    
+
     Returns:
         pathlib.Path: Concatenation of both paths
 
@@ -263,10 +361,7 @@ def check_append_path(root: str, relative: str) -> pathlib.Path:
     return root_path / relative_path
 
 
-def retrieve_all_files_available(
-    folders: list,
-    ssh_session: SSHExecutor
-) -> dict:
+def retrieve_all_files_available(folders: list, ssh_session: SSHExecutor) -> dict:
     """
     For a given group of folders, retrieve all the files available
     into them, their absolute path and the last modification date.
@@ -280,17 +375,15 @@ def retrieve_all_files_available(
     Returns
         dict: Folder and files available ordered by last modification time
     """
+
     def __parse_stdout(stdout_content: str):
         lines = [l for l in stdout_content.splitlines() if l]
         content = []
         for file_data in lines:
             data = file_data.split(EMPTY_SPACE)
             record = (
-                datetime.datetime.fromtimestamp(
-                    int(data[0]),
-                    datetime.timezone.utc
-                ),
-                data[1]
+                datetime.datetime.fromtimestamp(int(data[0]), datetime.timezone.utc),
+                data[1],
             )
             content.append(record)
         content.sort(key=lambda e: e[0], reverse=True)
@@ -323,73 +416,69 @@ def retrieve_all_files_available(
                 files_content = {}
                 files_content["file_name"] = file_name
                 files_content["file_path"] = check_append_path(
-                    root=folder_path,
-                    relative=file[1]
+                    root=folder_path, relative=file[1]
                 )
                 files_content["last_modification_date"] = last_date_unix
                 files_parsed_content.append(files_content)
-        
+
         result[folder_path] = files_parsed_content
 
     return result
 
 
 def wrap_into_singularity(
-        script_name: str, 
-        content: list, 
-        desired_os: str,
+    script_name: str,
+    content: list,
+    desired_os: str,
 ) -> list:
     """
     Wraps a script to run via singularity using cmssw containers.
-    
+
     Args:
         script_name (str): Name of the subscript that groups the given instructions
             to be executed via singularity.
         content (list[str]): Instructions to execute via singularity.
         desired_os (str): CERN OS tag related to the desired OS to use.
-    
+
     Returns:
         list[str]: Instructions provided with some extra code to handle
             singularity.
     """
     # CMSSW container folder
-    container_path = '/cvmfs/unpacked.cern.ch/registry.hub.docker.com/cmssw'
+    container_path = "/cvmfs/unpacked.cern.ch/registry.hub.docker.com/cmssw"
 
     # Wrapper instructions
-    wrapper_placeholder = 'EndOfSingularityWrapper'
-    wrapper_header = [
-        '',
-        f"cat <<'{wrapper_placeholder}' > {script_name}"
-    ]
+    wrapper_placeholder = "EndOfSingularityWrapper"
+    wrapper_header = ["", f"cat <<'{wrapper_placeholder}' > {script_name}"]
     # Execution command
     singularity_run = (
-        'singularity run ' 
-        '-B /afs -B /cvmfs -B /etc/grid-security -B /etc/pki/ca-trust '
-        '--no-home /cvmfs/unpacked.cern.ch/registry.hub.docker.com/cmssw/$CONTAINER_NAME '
-        '$(echo $(pwd)/%s)' % (script_name)
+        "singularity run "
+        "-B /afs -B /cvmfs -B /etc/grid-security -B /etc/pki/ca-trust "
+        "--no-home /cvmfs/unpacked.cern.ch/registry.hub.docker.com/cmssw/$CONTAINER_NAME "
+        f"$(echo $(pwd)/{script_name})"
     )
     wrapper_close = [
-        '',
-        f'# End of {script_name} file',
-        f'{wrapper_placeholder}',
-        '',
-        f'# Make {script_name} file executable',
-        f'chmod +x {script_name}',
-        '',
-        '# Check the proper tag for the architectue',
-        'if [ -e "%s/%s:amd64" ]; then' % (container_path, desired_os),
-        '  CONTAINER_NAME="%s:amd64"' % (desired_os),
-        'elif [ -e "%s/%s:x86_64" ]; then' % (container_path, desired_os),
-        '  CONTAINER_NAME="%s:x86_64"' % (desired_os),
-        'else',
-            '  echo "Could not find amd64 or x86_64 for %s"' % (desired_os),
-            '  exit 1',
-        'fi',
-        '',
-        '# Running into a singularity container',
+        "",
+        f"# End of {script_name} file",
+        f"{wrapper_placeholder}",
+        "",
+        f"# Make {script_name} file executable",
+        f"chmod +x {script_name}",
+        "",
+        "# Check the proper tag for the architectue",
+        f'if [ -e "{container_path}/{desired_os}:amd64" ]; then',
+        f'  CONTAINER_NAME="{desired_os}:amd64"',
+        f'elif [ -e "{container_path}/{desired_os}:x86_64" ]; then',
+        f'  CONTAINER_NAME="{desired_os}:x86_64"',
+        "else",
+        f'  echo "Could not find amd64 or x86_64 for {desired_os}"',
+        "  exit 1",
+        "fi",
+        "",
+        "# Running into a singularity container",
         'export SINGULARITY_CACHEDIR="/tmp/$(whoami)/singularity"',
-        f'{singularity_run}',
-        ''
+        f"{singularity_run}",
+        "",
     ]
 
     # Wrap all together

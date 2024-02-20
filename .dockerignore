@@ -1,0 +1,17 @@
+# Ignore the following files for image building
+logs/
+venv/
+files/
+gridpacks/
+.vscode/
+*.env
+
+# Ignore the scripts, they are mainly used by CI workflows
+scripts/
+
+# Ignore Python cache
+__pycache__/
+
+# Ignore Docker Compose files
+*.yaml
+*.pid

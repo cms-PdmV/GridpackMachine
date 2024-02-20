@@ -1,0 +1,48 @@
+name: Code quality
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  pylint:
+    runs-on: ubuntu-latest
+    name: Scan the code using pylint
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Install Kerberos client
+        run: |
+          sudo apt-get install -y libkrb5-dev
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11.x
+      - name: Install dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements.txt
+      - name: Run pylint
+        # --fail-under=9.75 - fail if score is below 9.75
+        # --fail-on=E - fail if there were errors, regardless of the score
+        # --reports=y - print a report at the end
+        run: |
+          python3 -m pylint --version
+          python3 -m pylint --fail-under=9.75 --fail-on=E --reports=y `find . -type d \( -path ./venv -o -path ./core_lib \) -prune -o -type f | grep .py$ | xargs`
+  black:
+    runs-on: ubuntu-latest
+    name: Check code's format using Black
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Run Black formatter
+        uses: psf/black@stable
