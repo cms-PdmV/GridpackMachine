@@ -4,7 +4,6 @@ Module that contains start of the program, tick scheduler and web APIs
 
 import logging
 import json
-import os
 from flask import Flask, send_file, request, make_response
 from flask_restful import Api
 from environment import (
@@ -405,16 +404,13 @@ def main():
     Main function, parse arguments, create a controller and start Flask web server
     """
     set_app()
+    set_scheduler()
+    scheduler.start()
     logger = logging.getLogger()
-
-    # Scheduler config - Flask
-    if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
-        set_scheduler()
-        scheduler.start()
 
     logger.info("Will run on %s:%s", HOST, PORT)
     try:
-        app.run(host=HOST, port=PORT, debug=DEBUG, threaded=True)
+        app.run(host=HOST, port=PORT, debug=DEBUG, use_reloader=False, threaded=True)
     finally:
         scheduler.stop()
 
