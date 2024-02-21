@@ -4,7 +4,6 @@ Module that contains start of the program, tick scheduler and web APIs
 
 import logging
 import json
-import os
 from flask import Flask, send_file, request, make_response
 from flask_restful import Api
 from environment import (
