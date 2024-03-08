@@ -49,7 +49,7 @@ class EmailSender:
         body += "\n\nSincerely,\nGridpack Extravaganza Machine"
         ccs = [
             "PdmV Service Account <pdmvserv@cern.ch>",
-            "CMS Automatic Background Production <ppd-auto-bkg@cern.ch>",
+            "CMS Automatic Background Production <ppd-auto-bkg-machine@cern.ch>",
         ]
         # Create a fancy email message
         message = MIMEMultipart()
