@@ -251,8 +251,8 @@
           <span v-if="!dev" style="letter-spacing: -0.4px">{{gridpack.archive}}</span>
         </td>
         <td>
-          <a v-if="dev" :href="'https://cms-pdmv-dev.cern.ch/mcm/requests?prepid=' + gridpack.prepid" target="_blank">{{gridpack.prepid}}</a>
-          <a v-else :href="'https://cms-pdmv.cern.ch/mcm/requests?prepid=' + gridpack.prepid" target="_blank">{{gridpack.prepid}}</a>
+          <a v-if="dev" :href="'https://cms-pdmv-dev.web.cern.ch/mcm/requests?prepid=' + gridpack.prepid" target="_blank">{{gridpack.prepid}}</a>
+          <a v-else :href="'https://cms-pdmv-prod.web.cern.ch/mcm/requests?prepid=' + gridpack.prepid" target="_blank">{{gridpack.prepid}}</a>
         </td>
         <td>
           <ul style="text-align: left">
