@@ -524,6 +524,16 @@ class Gridpack:
 
         os.system(f"chmod a+x {script_path}")
 
+    def get_job_priority(self):
+        """
+        Get the job's priority based on the
+        CPU cores requested.
+        """
+        cores = self.get_cores()
+        if 1 <= cores <= 16:
+            return 3
+        return 0
+
     def prepare_jds_file(self):
         """
         Make condor job description file
@@ -545,6 +555,7 @@ class Gridpack:
             f"RequestDisk            = {30 * DISK_FACTOR_KB_TO_GB}",
             'requirements            = (OpSysAndVer =?= "AlmaLinux9")',
             f'+AccountingGroup        = "{chosen_group}"',
+            f"+JobPrio               = {self.get_job_priority()}",
             # pylint: disable=line-too-long
             "leave_in_queue          = JobStatus == 4 && (CompletionDate =?= UNDEFINED || ((CurrentTime - CompletionDate) < 7200))",
             "queue",
