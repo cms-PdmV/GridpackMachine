@@ -132,19 +132,58 @@ def get_latest_log_output_in_condor(gridpack, ssh=None):
         raise Exception(f"HTCondor status check returned {exit_code}")
 
 
+def _get_git_branches(
+    repository: str, max_pages: int = 25, branches_per_page: int = 30
+) -> list[str]:
+    """
+    Return a list with all branches available in a GitHub repository up to a maximum default page.
+
+    Args:
+        repository: Repository name in GitHub.
+        max_pages: Maximum number of pages to scan.
+        branches_per_page: Number of branches to retrieve per page.
+
+    Returns:
+        All the branches' names available up to the limit.
+    """
+    logger = logging.getLogger()
+    logger.debug(
+        "Scanning a maximum of %d branches from repo: %s",
+        max_pages * branches_per_page,
+        repository,
+    )
+    headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)"}
+    all_branches = []
+
+    with ConnectionWrapper("https://api.github.com") as conn:
+        for page in range(1, max_pages + 1):
+            response = conn.api(
+                "GET",
+                f"/repos/{repository}/branches?per_page={branches_per_page}&page={page}",
+                headers=headers,
+            )
+            response = json.loads(response.decode("utf-8"))
+            branches = [b["name"] for b in response if b.get("name")]
+            logger.debug(
+                "Found %s branches in %s on page %s", len(branches), repository, page
+            )
+            if not branches:
+                break
+
+            all_branches += branches
+
+    logger.debug(
+        "Found %s branches in total for repo: %s", len(all_branches), repository
+    )
+    return all_branches
+
+
 def get_git_branches(repository, cache=True):
     """
     Return list of branches in the repostory
     """
     if not cache or repository not in BRANCHES_CACHE:
-        headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64)"}
-        with ConnectionWrapper("https://api.github.com") as conn:
-            response = conn.api("GET", f"/repos/{repository}/branches", headers=headers)
-
-        response = json.loads(response.decode("utf-8"))
-        logger = logging.getLogger()
-        branches = [b["name"] for b in response if b.get("name")]
-        logger.debug("Found %s branches in %s", len(branches), repository)
+        branches = _get_git_branches(repository=repository)
         BRANCHES_CACHE[repository] = branches
 
     return BRANCHES_CACHE[repository]
